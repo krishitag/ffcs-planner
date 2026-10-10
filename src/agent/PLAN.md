@@ -166,7 +166,7 @@ These don't depend on any project code, so you can do them whenever you have tim
 
 > **Packages:** both need `@langchain/core`, `@langchain/langgraph` and `zod`. After 1.1 they're installed in the repo. Before 1.1, do them in a throwaway folder outside the repo (`mkdir ~/langgraph-practice && cd ~/langgraph-practice && yarn init -y && yarn add @langchain/core @langchain/langgraph zod && yarn add -D tsx`), so nothing touches the project yet.
 
-### - [ ] P.1 What a "tool" is (concept, no project code)
+### - [x] P.1 What a "tool" is (concept, no project code) (done: `src/agent/playground/p1-tools.ts`)
 
 - **What:** Write a tiny `tool()` in a scratch file: a function plus a name, a description and a zod schema. Inspect the JSON schema the LLM would see.
 - **Why:** You know RAG, and this is the missing piece. The LLM never runs code. It _asks_ for a call ("call `searchCourses` with `{query: 'OS'}`"), your code runs it, and the result goes back as a `ToolMessage`.
@@ -176,7 +176,7 @@ These don't depend on any project code, so you can do them whenever you have tim
   - Explain tool calling to me as if I only know RAG.
   - Who executes the tool, the model or your code? Why does that matter for safety?
 
-### - [ ] P.2 Toy graph (learning only)
+### - [x] P.2 Toy graph (learning only) (done: `src/agent/playground/p2-graph.ts`)
 
 - **What:** `src/agent/playground/hello-graph.ts` (or a throwaway folder, see the note above): two nodes, one conditional edge and a counter in state. Run it and print each step.
 - **Why:** You learn the moving parts with nothing else going on before you wire up the real graph.
@@ -196,7 +196,7 @@ These don't depend on any project code, so you can do them whenever you have tim
 
 ## Phase 1: Setup and data layer (no LLM)
 
-### - [ ] 1.1 Install dependencies
+### - [x] 1.1 Install dependencies (done: langgraph 1.4.21, core 1.2.17, zod 4.6.5, tsx 4.23.15)
 
 - **What:** `yarn add @langchain/langgraph @langchain/core zod` and `yarn add -D tsx`.
 - **Why:** LangGraph is the graph runtime, `@langchain/core` has the message, tool and model interfaces, zod gives schemas, and tsx runs `.ts` scripts directly (it understands the `@/` path alias from `tsconfig.json`).
