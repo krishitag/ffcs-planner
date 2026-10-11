@@ -112,3 +112,79 @@ to say them in my own words without reading.
    ones; for chat messages you need an append reducer so history is kept."
 4. "My own counter in the state that stops after a few rounds, with LangGraph's recursion limit as a
    last safety net."
+
+---
+
+## Phase 1: Data layer (no LLM yet)
+
+### What I built
+
+- **Packages:** LangGraph 1.4, LangChain core 1.2, Zod 4.6, tsx 4.23 (with yarn).
+- **`data/loadCourses.ts`:** every course from `src/data` in one flat list (938 courses, 138 in
+  SCOPE). The name is everything after the **first** `" - "`, so "Advanced Competitive Coding - I"
+  keeps its "- I" (the site shortens it; Q9).
+- **Picker rules moved to `src/lib/courseData.ts`** (commit `9de77de`): the 5 rules for what the
+  course picker offers (which subjects, theory slots, professors per slot, morning/evening labs,
+  professors per lab shift). Proved unchanged by snapshotting their output for all 938 courses
+  before the move and comparing after: byte-identical.
+- **`data/toFullCourseData.ts`:** every option for one course, built by "picking everything" with
+  the website's own rules and `buildCourseData`. 842 listed courses build; 55 options removed
+  because the professor has no real lab (Q1); 7 courses have nothing to pick, same as the site (Q10).
+- **Grid labels moved to `src/lib/slots.ts`** (commit `68ac48a`): the timetable's day and hour labels,
+  proved unchanged (same 40 label cells, same order).
+- **`data/slotTimes.ts`:** any slot string → every weekly session with day and times
+  (`A1` = Mon 08:00–08:50 + Wed 09:00–09:50; `L9+L10+L25+L26` = Tue 09:50–11:30 + Fri 08:00–09:40;
+  `NIL` = none).
+- **`data/validate.ts`:** reports anything the agent can't read. On the real data: only the 7 Q10
+  courses and 2 empty schools. Tested on bad strings (`L2`, `L1+L4`, `A1+L1`) to prove it catches them.
+- **Data version:** `updateDataVersion.ts` writes the date `src/data` last changed (2026-06-28) into
+  `dataVersion.ts`; the validator warns if it's stale and skips quietly when Git isn't there.
+
+### Concepts
+
+- **Flattening nested data** with `Object.entries` and three loops.
+- **Pure functions** that take plain data and return lists: easy to test and to share between the
+  website and the agent.
+- **Snapshot (golden-master) testing at scale:** record the old rules' output for every course, then
+  compare the new functions against it. Stronger than a few manual checks.
+- **Deriving instead of hardcoding:** day and time come from the grid the website already draws,
+  which was checked against VIT's official chart.
+- **Times as minutes since midnight:** "no 8am" becomes `start < 9 * 60`, a simple number comparison.
+- **Fail loudly vs never crash:** the update script stops on a bad date (I'm watching it); the
+  validator never stops (it may run inside the agent), it only reports.
+- **Build-time vs runtime values:** a deployed site often has no Git history, so the data date is
+  written into code before deploying.
+
+### Decisions and why
+
+| Decision                                                                                 | Why                                                                                                     |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Move the picker rules and grid labels into `src/lib/`, not copy them                     | One copy: the website and the agent can never disagree                                                  |
+| Snapshot all 938 courses before moving the picker rules                                  | Proves the move changed nothing, for every course, not just a few                                       |
+| Drop a professor with no real lab and say "lab slot unavailable for this professor" (Q1) | Never show a student a lab that doesn't exist                                                           |
+| Copy the website when nothing can be picked (Q10)                                        | The agent must never invent options the website wouldn't offer                                          |
+| Group options with the same slot string (only professor/room differ) before generating   | Same clashes and times, far fewer combinations: 6 typical courses go from 177,984 to 1,920 (~93× fewer) |
+| Validator reports, never rejects                                                         | The data is correct by default; odd things are questions, not errors                                    |
+| Data date written by a script after each update, with a validator reminder               | Works on Vercel (no Git there) without touching website files                                           |
+
+### Interview questions
+
+1. How did you make sure moving the picker's rules didn't change what students can pick?
+2. How do you turn a slot like `A1` into real days and times?
+3. A soft-skills course has 103 sections. How did you stop that from exploding the number of
+   timetables to try?
+4. Why does your validator only report problems instead of rejecting bad data?
+
+**Short answers:**
+
+1. "Before touching the code, I ran the old rules on all 938 courses and saved every dropdown list.
+   Then I ran the new functions and compared: byte-identical."
+2. "The website already knows where each slot sits on its grid. I map grid rows to days and columns
+   to times, 10 minutes per column from 8:00, using the grid's own labels, and checked the result
+   against VIT's slot chart. One grid cell is one session, so `A1` gives Monday and Wednesday."
+3. "Sections in the same slot differ only by company and room, so for clashes and times they're
+   identical. I group them by exact slot string, generate with one option per group, and let the
+   student pick the section afterwards. For six typical courses that's about 93× fewer combinations."
+4. "The data comes from a team that tests it against how VIT works. Something unusual is usually a
+   real rule I don't know yet, so the validator reports it for me to ask about, and the agent keeps
+   working."

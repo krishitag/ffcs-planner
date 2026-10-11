@@ -284,7 +284,7 @@ These don't depend on any project code, so you can do them whenever you have tim
 - **Interview questions:**
   - Why might `git log` work locally but fail on Vercel at runtime?
 
-### - [ ] 1.8 Phase 1 wrap-up
+### - [x] 1.8 Phase 1 wrap-up (README and LEARNING updated; you edit them into your own words)
 
 - **What:** Update README and LEARNING, run every script, and do a quiz round.
 - **Who writes it:** You update the docs. Claude quizzes.
