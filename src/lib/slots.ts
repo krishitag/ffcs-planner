@@ -198,3 +198,29 @@ export function getAllSlots(): string[] {
 export function getCollisions(slot: slot): slot[] {
   return (clashMap[slot.slotName] || []).flatMap(name => slotMap[name] || []);
 }
+
+// Timetable grid labels: which rows are which day, and which column each hour starts at.
+// Moved out of TimeTable.tsx (no behaviour change) so the agent can turn grid positions
+// into real days and times. Hours use the 12-hour clock as printed (1 = 1pm ... 7 = 7pm).
+export const DAY_LABEL_CELLS: slot[] = [
+  { colStart: 1, colEnd: 2, rowStart: 4, rowEnd: 6, slotName: 'Mon' },
+  { colStart: 1, colEnd: 2, rowStart: 7, rowEnd: 9, slotName: 'Tue' },
+  { colStart: 1, colEnd: 2, rowStart: 10, rowEnd: 12, slotName: 'Wed' },
+  { colStart: 1, colEnd: 2, rowStart: 13, rowEnd: 15, slotName: 'Thu' },
+  { colStart: 1, colEnd: 2, rowStart: 16, rowEnd: 18, slotName: 'Fri' },
+];
+
+export const HOUR_LABEL_CELLS: slot[] = [
+  { colStart: 2, colEnd: 3, rowStart: 1, rowEnd: 2, slotName: '8' },
+  { colStart: 8, colEnd: 9, rowStart: 1, rowEnd: 2, slotName: '9' },
+  { colStart: 14, colEnd: 15, rowStart: 1, rowEnd: 2, slotName: '10' },
+  { colStart: 20, colEnd: 21, rowStart: 1, rowEnd: 2, slotName: '11' },
+  { colStart: 26, colEnd: 27, rowStart: 1, rowEnd: 2, slotName: '12' },
+  { colStart: 32, colEnd: 33, rowStart: 1, rowEnd: 2, slotName: '1' },
+  { colStart: 38, colEnd: 39, rowStart: 1, rowEnd: 2, slotName: '2' },
+  { colStart: 44, colEnd: 45, rowStart: 1, rowEnd: 2, slotName: '3' },
+  { colStart: 50, colEnd: 51, rowStart: 1, rowEnd: 2, slotName: '4' },
+  { colStart: 56, colEnd: 57, rowStart: 1, rowEnd: 2, slotName: '5' },
+  { colStart: 62, colEnd: 63, rowStart: 1, rowEnd: 2, slotName: '6' },
+  { colStart: 68, colEnd: 69, rowStart: 1, rowEnd: 2, slotName: '7' },
+];
