@@ -340,3 +340,67 @@ export function buildCourseData({
 
   return courseData;
 }
+
+// ---- What the course picker offers (moved from FacultySelector.tsx; no behaviour change) ----
+
+// Rule 1: the subjects listed for a domain. A lab course (P) is hidden when its theory
+// course (same code ending in L) is also listed, because adding the theory brings the lab.
+export function getVisibleSubjects(subjectKeys: string[]): string[] {
+  return subjectKeys.filter(subject => {
+    const code = subject.split(' - ')[0];
+    const type = getCourseType(code);
+    if (type === 'P') {
+      const theoryCode = code.slice(0, -1) + 'L';
+      return !subjectKeys.some(s => s.startsWith(theoryCode));
+    }
+    return true;
+  });
+}
+
+// Rule 2: the theory slots a course offers (every non-lab slot, no repeats).
+export function getTheorySlots(entries: SubjectEntry[]): string[] {
+  const rawSlots = entries.map(entry => entry.slot);
+  const filteredSlots = rawSlots.filter(slot => !slot.startsWith('L'));
+  return [...new Set(filteredSlots)];
+}
+
+// Rule 3: the professors teaching one slot (no repeats). Soft-skills (BSTS) sections are
+// told apart by room, so their name is shown as "company (room)".
+export function getFacultiesForSlot(
+  courseCode: string,
+  entries: SubjectEntry[],
+  slot: string
+): string[] {
+  const facultiesForSlot = entries
+    .filter(entry => entry.slot === slot)
+    .map(entry =>
+      courseCode.startsWith('BSTS') ? `${entry.faculty} (${entry.venue})` : entry.faculty
+    );
+  return [...new Set(facultiesForSlot)];
+}
+
+// Rule 4: a lab-only course's lab slots, split into morning (all parts <= L30)
+// and evening (all parts >= L31).
+export function getLabShiftSlots(entries: SubjectEntry[]): {
+  morning: string[];
+  evening: string[];
+} {
+  const allLabSlots = [...new Set(entries.map(entry => entry.slot))];
+  const morning = allLabSlots.filter(slot => {
+    const parts = slot.split('+').map(s => parseInt(s.replace('L', ''), 10));
+    return parts.every(num => num <= 30);
+  });
+  const evening = allLabSlots.filter(slot => {
+    const parts = slot.split('+').map(s => parseInt(s.replace('L', ''), 10));
+    return parts.every(num => num >= 31);
+  });
+  return { morning, evening };
+}
+
+// Rule 5: the professors teaching in any of the given lab slots (no repeats).
+export function getFacultiesForLabSlots(entries: SubjectEntry[], labSlots: string[]): string[] {
+  const facultiesInSlots = entries
+    .filter(entry => labSlots.includes(entry.slot))
+    .map(entry => entry.faculty);
+  return [...new Set(facultiesInSlots)];
+}
