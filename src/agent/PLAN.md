@@ -242,7 +242,7 @@ These don't depend on any project code, so you can do them whenever you have tim
   - How did you reuse the UI's conversion without copying it?
 - **Grouping same-slot options (your rule, applies to every course, not just `BSTS`):** options of one course that have the **exact same slot string** (including the lab part for theory + lab courses, e.g. `F1+TF1__L55+L56`) and differ only by professor/company or room are identical for clashes and time constraints. Group them, keeping every member (professor, room) in the group, so 2.4 can generate with one option per group. **Measured:** `BSTS301P` 103 options → 4 groups; `BCSE302L` 48 → 20; all SCOPE courses 930 → 466.
 
-### - [ ] 1.5 `data/slotTimes.ts`: slot → sessions table
+### - [x] 1.5 `data/slotTimes.ts`: slot → sessions table (done: commit `36db83c`; labels moved in `68ac48a`. **Still to do: you check the printed table against VIT's chart**)
 
 - **What:** Two functions:
   - `sessionsOf(slotKey)` returns every weekly session as `{ day, start, end, kind: theory|lab, shift: morning|evening }`, derived from `slotMap` with the R-rules formula.
@@ -259,7 +259,7 @@ These don't depend on any project code, so you can do them whenever you have tim
   - `A1` meets twice a week and `L9+L10+L25+L26` is two lab sessions. How does your table represent that?
   - Why does `L2` on its own have no sessions?
 
-### - [ ] 1.6 `data/validate.ts`: data sanity checks
+### - [x] 1.6 `data/validate.ts`: data sanity checks (done: real data → only the 7 Q10 courses and 2 empty schools; bad strings like `L2`, `L1+L4` are caught in tests)
 
 - **What:** Report anything in the data that our _agent code_ doesn't know how to read, so we can ask about it (D6). Log problems, never throw. Make it runnable as a script. It **reports**; it never rejects or changes data.
   - `NIL` is known and not reported (R6).
