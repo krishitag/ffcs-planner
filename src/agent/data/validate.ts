@@ -6,9 +6,17 @@ import { getSlot } from '@/lib/slots';
 import { getVisibleSubjects, schools } from '@/lib/courseData';
 import { loadCourses, type Course } from './loadCourses';
 import { toFullCourseData } from './toFullCourseData';
+import { DATA_VERSION } from './dataVersion';
+import { gitDataDate } from './updateDataVersion';
 
 export type Issue = {
-  check: 'slot' | 'empty course' | 'duplicate code' | 'nothing to pick' | 'empty school';
+  check:
+    | 'slot'
+    | 'empty course'
+    | 'duplicate code'
+    | 'nothing to pick'
+    | 'empty school'
+    | 'data version';
   where: string;
   detail: string;
 };
@@ -20,6 +28,7 @@ export function validateData(courses: Course[] = loadCourses()): Issue[] {
     ...checkDuplicateCodes(courses),
     ...checkNothingToPick(courses),
     ...checkEmptySchools(courses),
+    ...checkDataVersion(),
   ];
 }
 
@@ -138,6 +147,25 @@ function checkEmptySchools(courses: Course[]): Issue[] {
       where: s,
       detail: 'has a website button but no courses; hidden from the agent (Q6)',
     }));
+}
+
+// 6. DATA_VERSION must match the date src/data last changed in Git. If Git isn't available
+//    (e.g. on Vercel), skip quietly: a validator must never crash.
+function checkDataVersion(): Issue[] {
+  let gitDate: string;
+  try {
+    gitDate = gitDataDate();
+  } catch {
+    return [];
+  }
+  if (gitDate === DATA_VERSION) return [];
+  return [
+    {
+      check: 'data version',
+      where: 'src/agent/data/dataVersion.ts',
+      detail: `says ${DATA_VERSION} but src/data last changed on ${gitDate}; run: npx tsx src/agent/data/updateDataVersion.ts`,
+    },
+  ];
 }
 
 // When run as a script: print a short report grouped by check. Never throws on data issues.

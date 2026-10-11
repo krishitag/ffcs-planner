@@ -274,7 +274,7 @@ These don't depend on any project code, so you can do them whenever you have tim
   - What did validation find in the real data, and what did it turn out to mean?
   - Why does your validator report instead of reject?
 
-### - [ ] 1.7 Data version
+### - [x] 1.7 Data version (done: option A. `updateDataVersion.ts` writes `dataVersion.ts` = 2026-06-28; the validator warns if it's stale and skips quietly without Git)
 
 - **What:** Expose `DATA_VERSION`, such as the last commit date touching `src/data` (currently 2026-06-28).
 - **Why:** Students should know whether the slots they're seeing are current.
