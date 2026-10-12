@@ -25,7 +25,7 @@ Line numbers below were checked against `upstream/prod` @ `9f002de`. They will d
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
 | O1  | The day and hour labels live as local constants _inside_ the `TimeTable` component. Should we export them (a small edit to an existing file) or mirror them in `src/agent/` with a comment citing the lines? | 1.5     |
 | O2  | Data version: generate it at build time from git, or keep a constant you update by hand?                                                                                                                     | 1.7     |
-| O3  | Test runner: vitest (recommended) or `node:test`                                                                                                                                                             | 2.0     |
+| O3  | Test runner: vitest (recommended) or `node:test`. **Decided (you, 2026-10-12): Vitest** (+ `vite` peer), config in `src/agent/vitest.config.ts`                                                              | 2.0     |
 | O4  | `resolve_courses`: a plain function call, or a real LLM tool-calling loop (ReAct)?                                                                                                                           | 3.5     |
 | O6  | Persistent checkpointer: MongoDB (the repo already uses it) or Postgres                                                                                                                                      | 7.1     |
 
