@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",
-    "test:agent": "vitest run --config src/agent/vitest.config.ts",
-    "test:agent:watch": "vitest --config src/agent/vitest.config.ts",
+    "test:agent": "vitest run --config src/agent/vitest.config.mts",
+    "test:agent:watch": "vitest --config src/agent/vitest.config.mts",
     "prepare": "husky"
   },
   "lint-staged": {

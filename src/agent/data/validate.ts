@@ -8,6 +8,7 @@ import { loadCourses, type Course } from './loadCourses';
 import { toFullCourseData } from './toFullCourseData';
 import { DATA_VERSION } from './dataVersion';
 import { gitDataDate } from './updateDataVersion';
+import { COURSE_ALIASES } from './aliases';
 
 export type Issue = {
   check:
@@ -16,7 +17,8 @@ export type Issue = {
     | 'duplicate code'
     | 'nothing to pick'
     | 'empty school'
-    | 'data version';
+    | 'data version'
+    | 'alias';
   where: string;
   detail: string;
 };
@@ -29,6 +31,7 @@ export function validateData(courses: Course[] = loadCourses()): Issue[] {
     ...checkNothingToPick(courses),
     ...checkEmptySchools(courses),
     ...checkDataVersion(),
+    ...checkAliases(courses),
   ];
 }
 
@@ -166,6 +169,18 @@ function checkDataVersion(): Issue[] {
       detail: `says ${DATA_VERSION} but src/data last changed on ${gitDate}; run: npx tsx src/agent/data/updateDataVersion.ts`,
     },
   ];
+}
+
+// 7. Every nickname in aliases.ts must point to a course name that exists in the data (D9).
+function checkAliases(courses: Course[]): Issue[] {
+  const names = new Set(courses.map(c => c.name.toLowerCase()));
+  return Object.entries(COURSE_ALIASES)
+    .filter(([, name]) => !names.has(name.toLowerCase()))
+    .map(([nickname, name]) => ({
+      check: 'alias' as const,
+      where: 'src/agent/data/aliases.ts',
+      detail: `"${nickname}" points to "${name}", which is not in the data`,
+    }));
 }
 
 // When run as a script: print a short report grouped by check. Never throws on data issues.
