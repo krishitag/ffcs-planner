@@ -85,6 +85,7 @@ These are things that looked odd to Claude while reading the code. They are **qu
 4. **Q9:** whether shortening course names at the second " - " is intended (e.g. BBMD102L and BBMD201L get the same saved name).
 5. **Q10:** whether students can add courses with no type and only lab slots (`CSE1002`, `BAMEE310`, `BAECE352`); the picker shows an empty slot list for them.
 6. **Q11:** whether `Specialization Elective – X` groups are reserved for that specialization's students (and Discipline Elective is for everyone else), and what the repeated codes mean in other schools.
+7. **Q3 (seen locally, same code as the live site):** FFCS-inator's `generateTT` reports two `NIL` courses as a clash ("Slots (NIL)"), because it compares the text "NIL" with "NIL". You said NIL never clashes (R6). The agent follows R6 by keeping NIL-only courses out of `generateTT` and adding them back; the website's own generator is untouched.
 
 ---
 
@@ -382,7 +383,7 @@ _(2.1 moved to the parallel track as P.1.)_
   - A naive "slot must be in `slotMap`" check rejects every lab. Why?
   - Your verifier found something it didn't understand. What did it do, and why not just reject it?
 
-### - [ ] 2.7 Tests for 2.2–2.6
+### - [x] 2.7 Tests for 2.2–2.6 (done: 81 tests across data, search, constraints, generate, filterRank, finalCheck; found that `generateTT` treats two NIL courses as a clash, so the wrapper follows R6)
 
 - **What:** Small fixtures:
   - a known clash pair;

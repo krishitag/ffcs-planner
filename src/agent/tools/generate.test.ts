@@ -238,3 +238,54 @@ describe('generate: explaining why a course has no options (smallest conflict, D
     expect(r.fixes[0].timetables).toBeGreaterThan(0); // 164 with today's data
   });
 });
+
+describe('generate: the planned edge cases (2.7)', () => {
+  it('"no 8am" is broken by a LAB at 8:00 even when the theory is in the evening (R5)', () => {
+    const o = optionsFor('OS', OS).find(
+      x => x.slot === 'B2+TB2' && x.labSlot === 'L13+L14' && x.faculty === 'ARTHI M'
+    )!;
+    expect(o.sessions.filter(s => s.kind === 'theory').every(s => s.start >= 540)).toBe(true);
+    expect(breaks(o, { kind: 'noClassesBefore', time: '09:00' })).toBe(true); // Wed 08:00 lab
+  });
+
+  it('"Friday free" is broken by the SECOND session of a four-slot lab (R2)', () => {
+    const PY = course('SCOPE', 'BCSE101E', 'FoundationCore');
+    const o = optionsFor('Python', PY).find(
+      x => x.labSlot === 'L5+L6+L27+L28' && x.faculty === 'VASANTHI P'
+    )!;
+    const friday = o.sessions.filter(s => s.day === 'Fri');
+    expect(friday.map(s => s.slot)).toEqual(['L27+L28']);
+    expect(breaks(o, { kind: 'freeDay', day: 'Fri' })).toBe(true);
+  });
+
+  it('removes a whole lab bundle, never just the part on the blocked day (R8)', () => {
+    // BCSE102L's bundles L33+L34+L37+L38 and L1+L2+L11+L12 each have ONE Tuesday session
+    const JAVA = course('SCOPE', 'BCSE102L', 'FoundationCore');
+    const r = generate({
+      courses: [{ query: 'Java', course: JAVA }],
+      constraints: Constraints.parse({ freeDays: [{ day: 'Tue' }] }),
+    });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    const labs = r.timetables.flat().map(g => g.labSlot ?? g.slot);
+    expect(labs).not.toContain('L33+L34+L37+L38');
+    expect(labs).not.toContain('L1+L2+L11+L12');
+    expect(labs).not.toContain('L33+L34'); // never trimmed down to the non-Tuesday half
+    expect(labs).not.toContain('L1+L2');
+    expect(labs.length).toBeGreaterThan(0); // the Tuesday-free bundles are kept
+  });
+
+  it('two NIL courses never clash, not even with each other (R6)', () => {
+    const capstone = course('MTech', 'CSI4901', 'UniversityCore - MIC');
+    const thesis = course('MTech', 'MIY6099', 'UniversityElective - MIC');
+    const r = generate({
+      courses: [
+        { query: 'capstone', course: capstone },
+        { query: 'thesis', course: thesis },
+      ],
+      constraints: Constraints.parse({ noClassesBefore: { time: '10:00' } }),
+    });
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') expect(r.timetables[0].map(g => g.slot)).toEqual(['NIL', 'NIL']);
+  });
+});

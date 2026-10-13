@@ -230,11 +230,19 @@ function runWith(
   const after = product(groupsPerCourse.map(g => g.size));
   if (after > limit) return { status: 'tooMany', combinations: after, limit };
 
+  // R6: a course whose every option is NIL (projects, online courses) has no classes, so it
+  // can't clash with anything, not even another NIL course. generateTT would compare the text
+  // "NIL" with "NIL" and call that a clash, so NIL-only courses are kept out of it and added
+  // back to every timetable afterwards.
+  const isNilOnly = (i: number) => [...groupsPerCourse[i].values()].every(g => g.slot === 'NIL');
+  const timed = courses.map((_, i) => i).filter(i => !isNilOnly(i));
+
   // One representative per group, in the shape generateTT expects.
-  const input: fullCourseData[] = courses.map((c, i) =>
-    representativeCourse(c.course, [...groupsPerCourse[i].values()])
+  const input: fullCourseData[] = timed.map(i =>
+    representativeCourse(courses[i].course, [...groupsPerCourse[i].values()])
   );
-  const { result, clashes } = generateTT(input, true);
+  const { result, clashes } =
+    input.length > 0 ? generateTT(input, true) : { result: [[]], clashes: null };
   if (result.length === 0) return { status: 'noTimetable', clashes, fixes: [] };
 
   // generateTT returns rows in course order; a theory + lab course has two rows in a row
@@ -244,6 +252,10 @@ function runWith(
     let r = 0;
     for (let i = 0; i < courses.length; i++) {
       const groups = groupsPerCourse[i];
+      if (isNilOnly(i)) {
+        picked.push(groups.values().next().value!);
+        continue;
+      }
       const sample = groups.values().next().value!.members[0];
       const theory = rows[r++];
       const lab = sample.courseType === 'both' ? rows[r++] : undefined;

@@ -31,6 +31,10 @@ describe('filterRank', () => {
     const ranked = rank({});
     expect(ranked).toHaveLength(3);
     expect(ranked.every(r => r.score === 0 && r.reasons.length === 0)).toBe(true);
+    // e.g. OS in the morning with CN in the evening is fine: no shift was asked for
+    const shifts = (t: OptionGroup[]) =>
+      new Set(t.map(g => (g.slot.split('+')[0].endsWith('1') ? 'm' : 'e')));
+    expect(timetables.some(t => shifts(t).size === 2)).toBe(true);
   });
 
   it('a preferred professor ranks first, puts them first in their group, and says why', () => {
