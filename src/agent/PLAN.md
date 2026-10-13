@@ -364,7 +364,7 @@ _(2.1 moved to the parallel track as P.1.)_
   - How did you choose the weights? How would you tune them?
   - How do you guarantee the explanation matches the ranking?
 
-### - [ ] 2.6 `tools/finalCheck.ts`: independent verifier
+### - [x] 2.6 `tools/finalCheck.ts`: independent verifier (done: 11 tests; 62,614 real timetables from 680 course combos all pass, 0 false rejections)
 
 - **What:** Re-check every timetable without trusting `generateTT`. It verifies on **sessions** (from `slotTimes`), not raw strings:
   - every slot string parses into known sessions, with lab pairs treated as one session (R1) and every session of multi-session labs and multi-part theory included (R2, R3);
