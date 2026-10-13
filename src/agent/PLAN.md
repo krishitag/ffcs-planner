@@ -501,7 +501,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
 
 ### - [ ] 4.2 Ask for the school, batch and branch once
 
-- **What:** An `ask_school` node at the start. If `parse_request` didn't find the program and batch in the message and `state.school` is empty, it interrupts and asks for **program + batch year + branch/specialization** (BCE, BAI, BDS, …; Q11) (or "which list do you pick on FFCS-inator?"), with **SCOPE first**. It maps the answer to an **existing** top-level key of `data` (Q7). If nothing matches, for example a 2025 SCHEME student when only a plain `SCHEME` key exists, it asks again instead of guessing. It stores the key in state and never asks again in that thread. The options are the `schools` list in `src/lib/courseData.ts` (the website's buttons, SCOPE first) **minus schools with no courses**, worked out automatically, so they follow CodeChef's changes (Q6). If the student names a hidden empty school (SCE, SBST ('25 Batch), MIS), reply "no courses are listed for that school yet" instead of "unknown school".
+- **What:** An `ask_school` node at the start. If `parse_request` didn't find the program and batch in the message and `state.school` is empty, it interrupts and asks for **program + batch year + branch/specialization** (BCE, BAI, BDS, …; Q11) (or "which list do you pick on FFCS-inator?"), with **SCOPE first**. It maps the answer to an **existing** top-level key of `data` (Q7). If nothing matches, for example a 2025 SCHEME student when only a plain `SCHEME` key exists, it asks again instead of guessing. It stores the key in state and never asks again in that thread. **Branch/specialization is only asked when it changes the result** (e.g. a requested course is in Specialization Elective groups, Q11), per the rules in 4.5. The options are the `schools` list in `src/lib/courseData.ts` (the website's buttons, SCOPE first) **minus schools with no courses**, worked out automatically, so they follow CodeChef's changes (Q6). If the student names a hidden empty school (SCE, SBST ('25 Batch), MIS), reply "no courses are listed for that school yet" instead of "unknown school".
 - **Why:** Search is school-scoped (D7). Asking once and checkpointing the answer keeps later turns from asking again.
 - **Concepts:** Your first `interrupt()`. Conditional entry routing (skip the node if `school` is already set). State that persists across turns via the checkpointer.
 - **Who writes it:** You.
@@ -527,19 +527,40 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
   - How do you find _which_ constraint causes infeasibility?
   - What if two constraints only conflict together?
 
-### - [ ] 4.5 Conditional edges and the loop cap
+### - [ ] 4.5 Clarifying questions, only when the answer changes which timetable wins
+
+- **What:** after generating and ranking, the agent may ask the student **1–2 questions** to be more specific, but **only if the answer would change which timetable wins**. Four cases:
+  1. **Vague wishes:** "not too early" → "nothing before 9:00 or before 10:00?" (only if 9 and 10 give different winners).
+  2. **Top results differ by one choice:** the best timetables are equal except for one course's professor or slot → "for CN, Brisilla in F2+TF2 or Tamizharasi in F1+TF1?"
+  3. **Trade-offs between two wishes:** keeping one wish costs the other (e.g. Prof Y only teaches after 5, but the student said "nothing after 5 if possible") → "which matters more?"
+  4. **Missing info that changes results:** school, batch or branch (e.g. the branch decides the Specialization Elective group, Q11). If it changes nothing, don't ask.
+- **Rules (yours):**
+  - At most **1–2 questions per turn**.
+  - **Always show the current best timetable alongside the question**, so the student is never blocked waiting.
+  - **Never ask about something that doesn't change the outcome.** Check first: rank with each possible answer; if the winner is the same either way, skip the question.
+  - **Pick the question whose answer splits the remaining timetables the most** (the most even split), so each answer removes as many options as possible.
+- **Why:** a good assistant asks only questions that matter. Asking about things that don't change the result wastes the student's time; never asking means guessing on things they care about.
+- **Concepts:** counterfactual checks (re-rank as if the student answered A, then B); choosing the most informative question (the same idea as "20 questions" or how a decision tree picks a split: information gain); not blocking the user (answer now, refine later); LangGraph `interrupt()` with a default answer.
+- **Code to understand:** `tools/filterRank.ts` (the scores and reasons per timetable, `pickDifferent`), `tools/generate.ts` (`fixes` for trade-offs), 4.2 and 4.3 (the other questions the agent asks).
+- **Who writes it:** Claude writes it; you review it and get quizzed.
+- **Interview questions:**
+  - How does your agent decide whether a clarifying question is worth asking?
+  - Why show a timetable together with the question instead of waiting for the answer?
+  - How do you pick which question to ask when several are possible?
+
+### - [ ] 4.6 Conditional edges and the loop cap
 
 - **What:** Route `0 results → relax` otherwise `→ final_check`. Add an ambiguity route, a `relaxRounds` cap (for example 3) and LangGraph's `recursionLimit`.
 - **Who writes it:** You.
 - **Interview questions:**
   - How do you guarantee the graph terminates?
 
-### - [ ] 4.6 `final_check` node
+### - [ ] 4.7 `final_check` node
 
 - **What:** Run 2.6 just before present. Anything that fails is removed and logged, and if nothing survives the graph goes back to relax.
 - **Who writes it:** You.
 
-### - [ ] 4.7 Multi-turn CLI and Phase 4 wrap-up
+### - [ ] 4.8 Multi-turn CLI and Phase 4 wrap-up
 
 - **What:** Extend the CLI to show interrupt questions, read your answer and resume. Then update the docs and do a quiz round.
 - **Who writes it:** Claude writes the CLI. You do the docs.
