@@ -403,7 +403,7 @@ _(2.1 moved to the parallel track as P.1.)_
 - **Interview questions:**
   - Which test caught a real mistake in your own code?
 
-### - [ ] 2.8 Phase 2 wrap-up: docs and quiz
+### - [x] 2.8 Phase 2 wrap-up: docs and quiz (README, LEARNING, INTERVIEW updated)
 
 ---
 

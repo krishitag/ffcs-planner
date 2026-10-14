@@ -3,7 +3,7 @@
 Everything I need to talk about this project in an interview, organised the way interviewers ask.
 `LEARNING.md` is the phase-by-phase diary; this file is what I revise from. Updated after every phase.
 
-**Status:** Phases 0 and 1 done (data layer, no LLM yet). Phases 2–7 to go. Only claim what's built.
+**Status:** Phases 0, 1 and 2 done (data layer and all the tools, 81 tests, no LLM yet). Phases 3–7 to go. Only claim what's built.
 
 ---
 
@@ -29,24 +29,34 @@ Everything I need to talk about this project in an interview, organised the way 
 > One design win: soft-skills courses have about 100 sections that differ only by room, so I group
 > options by slot before generating. For six typical courses that cuts the combinations to try from
 > about 178,000 to under 2,000, about 93 times fewer.
-> Next I'm building the tools, then the LangGraph agent with human-in-the-loop questions, then evals."
+> Then I built the tools the agent will call, all plain tested code with no LLM: a course search
+> that understands codes, nicknames, initials and typos and asks when it isn't sure; a generator
+> wrapper that applies the student's must-haves and, when nothing fits, finds the smallest set of
+> wishes to blame or which wish to drop; a ranker that explains every point it gives; and an
+> independent final check. 62,614 real timetables pass the final check with zero false alarms.
+> Next is the LangGraph agent with Gemini, then human-in-the-loop questions, then evals."
 
 ---
 
 ## 2. Numbers to remember
 
-| Number          | What it is                                                                                            |
-| --------------- | ----------------------------------------------------------------------------------------------------- |
-| ~30,000         | students who use FFCS-inator                                                                          |
-| 938             | courses in the data (138 in SCOPE), across 98 school/domain lists                                     |
-| 842             | courses the picker lists; all of them build without errors                                            |
-| 177,984 → 1,920 | combinations to try for 6 typical SCOPE courses, before/after grouping same-slot options (~93× fewer) |
-| 103 → 4         | `BSTS301P` soft-skills options → distinct slot groups                                                 |
-| 930 → 466       | all SCOPE options → distinct slot strings                                                             |
-| 55              | options removed because the professor has no real lab (Q1)                                            |
-| 7               | courses the site offers nothing to pick for (Q10)                                                     |
-| 25              | LangGraph's default recursion limit (steps per run)                                                   |
-| 10 min          | one column of the timetable grid; theory = 50 min, lab = 100 min                                      |
+| Number          | What it is                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| ~30,000         | students who use FFCS-inator                                                                                        |
+| 938             | courses in the data (138 in SCOPE), across 98 school/domain lists                                                   |
+| 842             | courses the picker lists; all of them build without errors                                                          |
+| 177,984 → 1,920 | combinations to try for 6 typical SCOPE courses, before/after grouping same-slot options (~93× fewer)               |
+| 103 → 4         | `BSTS301P` soft-skills options → distinct slot groups                                                               |
+| 930 → 466       | all SCOPE options → distinct slot strings                                                                           |
+| 55              | options removed because the professor has no real lab (Q1)                                                          |
+| 7               | courses the site offers nothing to pick for (Q10)                                                                   |
+| 25              | LangGraph's default recursion limit (steps per run)                                                                 |
+| 10 min          | one column of the timetable grid; theory = 50 min, lab = 100 min                                                    |
+| 81              | automated tests (Vitest) after Phase 2                                                                              |
+| 62,614 / 0      | real timetables from 680 course combinations checked by the final check / false alarms                              |
+| 0.6 / 0.1       | search: minimum score to count as a match / lead needed to say "found" instead of asking                            |
+| 2 vs 1          | ranking points for a preferred professor vs any other preference (time wishes lose 0.25 per class that breaks them) |
+| 164             | timetables that appear for OS + DBMS + DSA when "Wednesday free" is dropped                                         |
 
 ---
 
@@ -106,6 +116,37 @@ logic; nodes are thin glue between the graph's state and the tools.
   data date, but never rejects or changes data; tested it on deliberately bad inputs.
 - _Result:_ on the real data it found only known cases; after each data update it flags surprises early.
 
+**When real data proved my tests wrong (Phase 2)**
+
+- _Problem:_ I wrote tests from my own assumptions: OS + CN can have Friday free; OS + CN can share a building.
+- _What I did:_ ran them against the real course data and investigated each failure before touching code.
+- _Result:_ four times the code was right and my test was wrong (CN has a Friday class in every option;
+  OS is all in PRP and CN all in SJT). Lesson: test against real data, and investigate a failure before
+  "fixing" it.
+
+**Explaining why nothing fits (Phase 2)**
+
+- _Problem:_ "keep Friday free" or "mornings only + no 8am" often make timetables impossible, and a bare
+  "no results" helps nobody.
+- _What I did:_ if one course has no option left, find the smallest set of wishes that causes it (each
+  wish alone, then pairs); if courses only fail together, try dropping each wish and count what appears.
+- _Result:_ answers like "mornings only and no 8am can't both work for OS" or "drop Wednesday free → 164 timetables".
+
+**Testing the tester (Phase 2)**
+
+- _Problem:_ a final check is useless if it misses bugs, and just as useless if it rejects good timetables.
+- _What I did:_ planted one bug at a time in a real timetable (a clash, a fake slot, another professor's lab,
+  an 8am class) and ran 62,614 real timetables through it.
+- _Result:_ every planted bug caught, zero false alarms.
+
+**Finding an existing-code quirk without "fixing" it (Phase 2)**
+
+- _Problem:_ the website's generator reports two NIL (no-class) courses as a clash, because it compares the
+  text "NIL" with "NIL".
+- _What I did:_ left the website's code alone and made my wrapper keep NIL-only courses out of the generator,
+  adding them back after; put the finding on the list for the maintainers.
+- _Result:_ the agent follows the real rule (NIL never clashes) without changing shared code.
+
 ---
 
 ## 5. Quick glossary
@@ -137,6 +178,14 @@ logic; nodes are thin glue between the graph's state and the tools.
 - **Lockfile (`yarn.lock`):** exact installed versions, so every machine gets the same code.
 - **Dev dependency (`-D`):** only needed while developing (tsx), not by the running app (zod).
 - **Build-time vs runtime:** values baked in before deploying vs computed while running.
+- **Edit distance:** fewest single-letter changes between two words (I count a swap of neighbours as one).
+- **Threshold / close call:** a score cut-off for "match" and a minimum lead for "sure"; otherwise ask.
+- **Zod schema:** one definition gives runtime checks, defaults, the TypeScript type (`z.infer`) and LLM
+  instructions (`.describe`).
+- **Must vs prefer:** a hard constraint the result has to obey vs a soft one that only affects the score.
+- **Minimal conflict set:** the smallest group of wishes that together make something impossible.
+- **Counterfactual:** "what would happen if this wish were dropped?"
+- **Defence in depth:** an independent second check that shares as little code as possible with the first.
 - **Fail loudly vs never crash:** stop on bad input when a person is watching (scripts); report and
   continue inside the running app (validator).
 
@@ -214,14 +263,55 @@ logic; nodes are thin glue between the graph's state and the tools.
 30. **The site crashed locally. How did you debug it?** Read the first warning, suspect the
     environment (Node 25), change one thing (Node 22), confirm.
 
+### Phase 2: tools and testing
+
+31. **What did you test, and what did you deliberately not test?** Every tool's rules on real courses
+    (search, constraints, generator, ranker, final check) plus planted bugs. I didn't test the website's
+    own `generateTT` internals or the UI; I test the behaviour my agent relies on.
+32. **Why does "found" need a clear lead, not just the top score?** A narrow win is a guess; when two
+    courses score within 0.1 the agent asks instead of silently planning the wrong course.
+33. **Why only search the student's own school?** Other schools' sections may differ and aren't
+    registrable for them; saying "not offered in your school" is honest.
+34. **Why test with real data instead of made-up courses?** Real data found the surprises: DBMS isn't
+    "DS", hidden labs, specialization groups, swapped-letter typos.
+35. **Why have the LLM fill a Zod schema instead of plain text?** Code can check it: wrong days, bad
+    times or impossible combinations are rejected before anything acts on them, and the LLM retries.
+36. **Why does an unstated wish default to "must"?** Take the student at their word; if that makes
+    things impossible, the relax step asks before dropping it, rather than quietly ignoring it.
+37. **Why do `.describe()` texts matter?** They're sent to the LLM as instructions, so they're a small prompt.
+38. **Why remove bad options before generating?** The generator tries every combination; filtering early
+    shrinks the search multiplicatively, and grouping cuts it ~93×.
+39. **"One course is impossible" vs "no timetable fits together": why report them differently?** The first
+    has a cause inside one course (a wish or pair of wishes); the second only appears in combination, so
+    the fix is to drop a wish and see what appears.
+40. **Why try each wish alone before pairs?** The smallest explanation is the most useful and the cheapest
+    to find; pairs only when no single wish explains it.
+41. **Why return reasons with each ranked timetable?** The LLM explains my reasons, so its explanation can't
+    disagree with the ranking or invent its own.
+42. **Why do professors count double, and how would you set weights in a real product?** VIT students care
+    most about faculty; in production I'd tune weights from what students actually pick.
+43. **Why is "same building" checked in the ranker, not the generator?** It's about the whole timetable,
+    not one option, so it can only be judged once every course is chosen.
+44. **The generator already avoids clashes. Why a separate final check?** Nothing reaches a student
+    without an independent check; a bug in one place gets caught by the other.
+45. **Why rebuild sessions from slot strings instead of reusing the generator's?** If the generator
+    computed them wrongly, reusing them would hide the bug.
+46. **How do you test a checker?** Prove it catches problems (planted bugs) and prove it doesn't raise false
+    alarms (thousands of real good cases).
+47. **Why fix the NIL problem in your wrapper instead of the website's generator?** The website's code is
+    shared and maintained by another team; I don't change it without confirming, so my code follows the rule.
+48. **Some tests use today's courses. What happens when the data changes?** A failing test means "look at what
+    changed", like the validator; I check whether the data or my rule changed before editing anything.
+
 ---
 
 ## 7. Resume bullet (draft, update as phases finish)
 
 > Building a LangGraph (TypeScript) agent that turns natural-language timetable requests into
 > clash-free VIT course schedules on top of FFCS-inator (~30k users); refactored its course logic into
-> shared pure functions with snapshot-verified zero behaviour change across 938 courses, and cut the
-> timetable search space ~93× by grouping equivalent sections.
+> shared pure functions with snapshot-verified zero behaviour change across 938 courses, cut the
+> timetable search space ~93× by grouping equivalent sections, and built an independent final check
+> that passed 62,614 real timetables with zero false alarms (81 automated tests).
 
 (When Phases 3–6 are done, add: the agent works end to end, asks clarifying questions, and the eval
 results, e.g. "100% clash-free on N test requests".)

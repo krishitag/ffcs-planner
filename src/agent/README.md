@@ -27,6 +27,15 @@ Run a TypeScript file directly with `tsx`:
 npx tsx src/agent/playground/p2-graph.ts
 ```
 
+### Tests
+
+```bash
+yarn test:agent         # run every agent test once (81 today)
+yarn test:agent:watch   # rerun on every save
+```
+
+Test files sit next to the file they test and end in `.test.ts`.
+
 ### After every CodeChef data update
 
 ```bash
@@ -41,33 +50,39 @@ Commit `dataVersion.ts` with the update. The validator never changes data; it on
 
 ### In this folder
 
-| File                        | What it is                                                                                                                                                                                                                                            |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PLAN.md`                   | The build plan: every subtask with a checkbox, plus the decisions, slot rules (R1–R8) and open questions (Q1–Q10)                                                                                                                                     |
-| `README.md`                 | This file: what each file does and how they connect                                                                                                                                                                                                   |
-| `LEARNING.md`               | My learning log, one section per phase: what I built, the concepts, the decisions and why, and interview questions                                                                                                                                    |
-| `INTERVIEW.md`              | My interview revision sheet: the pitch, key numbers, stories, a glossary and every interview question with short answers, by topic. Updated after every phase                                                                                         |
-| `playground/p1-tools.ts`    | Learning exercise: one tool (`searchCourses`), what the LLM sees of it, and a tool-call round trip. Not used by the agent                                                                                                                             |
-| `playground/p2-graph.ts`    | Learning exercise: the smallest LangGraph (two nodes, a loop, a reducer). Not used by the agent                                                                                                                                                       |
-| `data/loadCourses.ts`       | Reads every course from `src/data` into one flat list (school, domain, code, full name, type, entries). 938 courses today                                                                                                                             |
-| `data/toFullCourseData.ts`  | Builds **every** option for one course (every slot, professor and lab) by "picking everything" with the website's own picker rules and `buildCourseData`. Drops professors with no real lab (Q1) and copies the site when nothing can be picked (Q10) |
-| `data/slotTimes.ts`         | Turns a slot string into every weekly session with real day, start and end times (e.g. `A1` = Mon 08:00–08:50 and Wed 09:00–09:50), derived from the website's grid                                                                                   |
-| `data/validate.ts`          | Reports anything in the data the agent can't read (odd slot strings, empty courses, repeated codes, Q10 courses, empty schools, a stale data version). Never changes data                                                                             |
-| `data/updateDataVersion.ts` | Writes the date `src/data` last changed (from Git) into `dataVersion.ts`                                                                                                                                                                              |
-| `data/dataVersion.ts`       | Generated: `DATA_VERSION`, the course data's date (shown to students)                                                                                                                                                                                 |
-| `data/*.check.ts`           | Small scripts that run each file on real courses and print the results                                                                                                                                                                                |
+| File                        | What it is                                                                                                                                                                                                                                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PLAN.md`                   | The build plan: every subtask with a checkbox, plus the decisions, slot rules (R1–R8) and open questions (Q1–Q11)                                                                                                                                                                                             |
+| `README.md`                 | This file: what each file does and how they connect                                                                                                                                                                                                                                                           |
+| `LEARNING.md`               | My learning log, one section per phase: what I built, the concepts, the decisions and why, and interview questions                                                                                                                                                                                            |
+| `INTERVIEW.md`              | My interview revision sheet: the pitch, key numbers, stories, a glossary and every interview question with short answers, by topic. Updated after every phase                                                                                                                                                 |
+| `playground/p1-tools.ts`    | Learning exercise: one tool (`searchCourses`), what the LLM sees of it, and a tool-call round trip. Not used by the agent                                                                                                                                                                                     |
+| `playground/p2-graph.ts`    | Learning exercise: the smallest LangGraph (two nodes, a loop, a reducer). Not used by the agent                                                                                                                                                                                                               |
+| `data/loadCourses.ts`       | Reads every course from `src/data` into one flat list (school, domain, code, full name, type, entries). 938 courses today                                                                                                                                                                                     |
+| `data/toFullCourseData.ts`  | Builds **every** option for one course (every slot, professor and lab) by "picking everything" with the website's own picker rules and `buildCourseData`. Drops professors with no real lab (Q1) and copies the site when nothing can be picked (Q10)                                                         |
+| `data/slotTimes.ts`         | Turns a slot string into every weekly session with real day, start and end times (e.g. `A1` = Mon 08:00–08:50 and Wed 09:00–09:50), derived from the website's grid                                                                                                                                           |
+| `data/validate.ts`          | Reports anything in the data the agent can't read (odd slot strings, empty courses, repeated codes, Q10 courses, empty schools, a stale data version). Never changes data                                                                                                                                     |
+| `data/updateDataVersion.ts` | Writes the date `src/data` last changed (from Git) into `dataVersion.ts`                                                                                                                                                                                                                                      |
+| `data/dataVersion.ts`       | Generated: `DATA_VERSION`, the course data's date (shown to students)                                                                                                                                                                                                                                         |
+| `data/*.check.ts`           | Small scripts that run each file on real courses and print the results                                                                                                                                                                                                                                        |
+| `data/aliases.ts`           | Student nicknames that initials can't find (`DBMS`, `DSA`, `COA`), checked by the validator (D9)                                                                                                                                                                                                              |
+| `constraints.ts`            | The Zod "form" for what a student wants: courses (+ professor and slot wishes), free days, no classes before/after, shift, same building, school/batch/branch. Each wish is `must` or `prefer` (default `must`, D10)                                                                                          |
+| `tools/searchCourses.ts`    | Finds the real course a student means (code, full name, initials, words with typos, nicknames, soft-skills company), only in their school; answers found / ambiguous / not offered / no courses for that school; keeps specialization groups apart (Q11)                                                      |
+| `tools/generate.ts`         | The generator wrapper: removes options that break a must wish (D11), groups same-slot sections (~93× fewer combinations), refuses if too many, runs the website's `generateTT`, and explains failures (the smallest set of wishes to blame, or which wishes to drop). NIL-only courses skip `generateTT` (R6) |
+| `tools/filterRank.ts`       | Scores timetables on the prefer wishes (professors count double, D12), keeps the top 3 that really differ, and gives a reason for every point; handles same building                                                                                                                                          |
+| `tools/finalCheck.ts`       | The last gate: re-checks every timetable from the raw data (real slots, really offered, the professor's own lab, no clashes two ways, every must wish) before a student sees it                                                                                                                               |
+| `**/*.test.ts`              | Vitest tests for all of the above (81 today)                                                                                                                                                                                                                                                                  |
+| `vitest.config.mts`         | Test runner config (the `@/` alias, tests only inside `src/agent/`)                                                                                                                                                                                                                                           |
 
 ### Coming next (folders appear when their first file is added)
 
-| Folder / file    | What it will hold                                                                                          | Phase |
-| ---------------- | ---------------------------------------------------------------------------------------------------------- | ----- |
-| `tools/`         | Course search, the generator wrapper, the filter and ranker, the final check                               | 2     |
-| `constraints.ts` | The schema for what the student wants (courses, blocked days and times, professors...)                     | 2     |
-| `llm.ts`         | Which LLM to use (Gemini 2.5 Flash), chosen by the `LLM_PROVIDER` env var                                  | 3     |
-| `state.ts`       | The graph's shared state (the "notebook" every step reads and writes)                                      | 3     |
-| `nodes/`         | One file per graph step (understand request, resolve courses, generate, rank, relax, present, final check) | 3–4   |
-| `graph.ts`       | Wires the nodes together with edges                                                                        | 3     |
-| `evals/`         | About 50 test requests and the script that scores the agent                                                | 6     |
+| Folder / file | What it will hold                                                                                          | Phase |
+| ------------- | ---------------------------------------------------------------------------------------------------------- | ----- |
+| `llm.ts`      | Which LLM to use (Gemini 2.5 Flash), chosen by the `LLM_PROVIDER` env var                                  | 3     |
+| `state.ts`    | The graph's shared state (the "notebook" every step reads and writes)                                      | 3     |
+| `nodes/`      | One file per graph step (understand request, resolve courses, generate, rank, relax, present, final check) | 3–4   |
+| `graph.ts`    | Wires the nodes together with edges                                                                        | 3     |
+| `evals/`      | About 50 test requests and the script that scores the agent                                                | 6     |
 
 ### Outside this folder (existing FFCS-inator code the agent reuses)
 

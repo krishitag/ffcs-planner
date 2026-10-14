@@ -188,3 +188,91 @@ to say them in my own words without reading.
 4. "The data comes from a team that tests it against how VIT works. Something unusual is usually a
    real rule I don't know yet, so the validator reports it for me to ask about, and the agent keeps
    working."
+
+---
+
+## Phase 2: Tools without an LLM
+
+### What I built
+
+- **Vitest** (2.0): `yarn test:agent`, tests next to each file; 81 tests by the end of the phase.
+- **`tools/searchCourses.ts`** (2.2): finds the real course from a code (`BCSE303`), full name,
+  initials (`OS`, `CN`, `TOC`), words with typos (`operating sytems`, `compiler desgin`), a small
+  nickname list (`DBMS`, `DSA`, `COA`) or a soft-skills company (`FACE`). Searches only the student's
+  school. Answers _found_, _ambiguous_ (top two within 0.1, so ask), _not offered in your school_ or
+  _no courses listed for that school yet_. Keeps specialization groups apart (Q11).
+- **`constraints.ts`** (2.3): the Zod form the LLM will fill: courses with professor and slot wishes,
+  free days, no classes before/after, shift, same building, school/batch/branch. Every wish is `must`
+  or `prefer`, and `must` when not stated (D10).
+- **`tools/generate.ts`** (2.4): removes options that break a must wish, groups same-slot sections,
+  refuses if there are too many combinations, runs FFCS-inator's `generateTT`, and maps results back.
+  When nothing fits it explains why: the smallest set of wishes that kills a course, or which wishes
+  to drop when courses only fail together.
+- **`tools/filterRank.ts`** (2.5): scores timetables on prefer wishes (professors 2 points, others 1,
+  time wishes lose 0.25 per class that breaks them), keeps the top 3 that really differ, with a reason
+  for every point.
+- **`tools/finalCheck.ts`** (2.6): re-checks every timetable from the raw data before a student sees it.
+- **Edge-case tests** (2.7), and a fix so two NIL courses never clash (R6).
+
+### Concepts
+
+- **Unit tests and a spec:** tests written first describe exactly what the code must do.
+- **Scoring and thresholds:** a match needs a score of 0.6; "found" needs a clear lead of more than
+  0.1, otherwise ask (precision vs recall).
+- **Edit distance:** the fewest single-letter changes between two words; I use the version where
+  swapping two neighbouring letters counts once (Damerau-style), because that's a common typo.
+- **Schemas with Zod:** one definition gives runtime checking, defaults, the TypeScript type
+  (`z.infer`) and instructions for the LLM (`.describe`).
+- **Filtering before generating:** cutting options early instead of filtering finished timetables.
+- **Equivalence grouping:** options that behave the same for every check are tried once.
+- **Minimal conflict sets:** try each wish alone, then pairs, to find the smallest cause.
+- **Counterfactuals:** "what if this wish were dropped?" to suggest fixes.
+- **Explainable ranking:** every point has a reason, so the explanation can't disagree with the score.
+- **Defence in depth / independent verification:** the final check rebuilds everything from raw
+  data and checks clashes two independent ways.
+- **Testing a checker:** plant bugs to prove it catches them, and run real data to prove it doesn't
+  raise false alarms.
+
+### Decisions and why
+
+| Decision                                                                      | Why                                                                                                                |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| A small nickname list (D9)                                                    | "Database Systems" has initials DS, so "DBMS" can't be found from initials                                         |
+| One search result = a course in one group; ask if the branch is unknown (Q11) | Specialization Elective sections may be reserved; never mix groups                                                 |
+| Unstated wishes are "must" (D10)                                              | Take the student at their word; the relax step asks before dropping anything                                       |
+| "Mornings only" applies to theory only (D11)                                  | Morning theory always comes with an evening lab, so applying it to labs makes every theory + lab course impossible |
+| Professors count double in ranking (D12)                                      | VIT students care most about faculty                                                                               |
+| G suffix = same building; SJTA = SJT (D12)                                    | SJTG is the ground floor of SJT                                                                                    |
+| Top 3 must differ by a slot or professor (D12)                                | Real choices, not near-copies                                                                                      |
+| NIL-only courses skip `generateTT` (R6)                                       | The website's generator compares the text "NIL" and calls two NIL courses a clash                                  |
+
+### What real data taught me
+
+- OS on its own can only have **Wednesday or Friday** free; CN has a Friday class in **every** option.
+- OS + DBMS + DSA can each avoid Wednesday alone but **not together**; dropping "Wednesday free" gives 164 timetables.
+- Every OS section is in PRP and every CN section is in SJT, so "same building" is impossible for them.
+- "Mornings only" + "no 8am" kills OS: its only morning slot B1 is Tuesday 08:00.
+- Four times, a test I wrote from my own assumptions was wrong and the code was right.
+- 62,614 real timetables from 680 course combinations all pass the final check (0 false alarms).
+
+### Interview questions
+
+1. How does your course search decide between "found" and "ambiguous"?
+2. Why filter options before generating, instead of filtering the finished timetables?
+3. A student's wishes make timetables impossible. How does your system explain why?
+4. Why does your final check exist if the generator already avoids clashes?
+
+**Short answers:**
+
+1. "Every course gets a score from several matchers: code, name, initials, words with typos, nicknames.
+   If the best isn't clearly ahead of the second (within 0.1), it's ambiguous and the agent asks,
+   because a wrong course silently ruins the timetable."
+2. "The generator tries every combination, so removing bad options first shrinks the search
+   multiplicatively. Grouping same-slot sections cut six typical courses from about 178,000
+   combinations to under 2,000."
+3. "If one course has no option left, I find the smallest set of wishes responsible, trying each wish
+   alone, then pairs. If every course is fine alone but they clash together, I try dropping each wish
+   and report which drops give timetables, like 'drop Wednesday free, 164 timetables'."
+4. "Nothing reaches a student without an independent check. It rebuilds sessions from the raw data and
+   checks clashes two ways, by time overlap and the website's clash table. I proved it catches planted
+   bugs and raised no false alarms on 62,614 real timetables."
