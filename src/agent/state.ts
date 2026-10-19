@@ -41,6 +41,9 @@ export const AgentState = Annotation.Root({
   // The best 2-3 timetables with reasons, after the final check. Written by: filterAndRank.
   ranked: Annotation<RankedTimetable[]>({ reducer: (_, next) => next, default: () => [] }),
 
+  // Why `ranked` is empty even though timetables were generated, if it is. Written by: filterAndRank.
+  rankIssue: Annotation<'same building' | 'final check rejected all' | undefined>(),
+
   // How many times we've asked the student to drop a wish (Phase 4 loop cap). Written by: relax.
   relaxRounds: Annotation<number>({ reducer: (_, next) => next, default: () => 0 }),
 });

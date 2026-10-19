@@ -459,7 +459,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
   - How do you stop a ReAct loop running forever?
   - How do you make sure the LLM can't search another school, even if the user asks it to?
 
-### - [ ] 3.6 `nodes/generate.ts` and `nodes/filterAndRank.ts`
+### - [x] 3.6 `nodes/generate.ts` and `nodes/filterAndRank.ts` (done: thin glue around 2.4/2.5/2.6; `rankIssue` says why ranking is empty; 4 tests, 102 in total)
 
 - **What:** Thin nodes that call the 2.4 and 2.5 tools and write the results to state. No LLM.
 - **Why:** Keeping nodes thin and logic in tools means the logic stays unit-testable without a graph.
