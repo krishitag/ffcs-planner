@@ -467,7 +467,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
 - **Interview questions:**
   - Why are these nodes and not tools the LLM calls?
 
-### - [ ] 3.7 `nodes/present.ts`
+### - [x] 3.7 `nodes/present.ts` (done: code builds a fact sheet, Gemini words it, code checks no invented slots/codes, retry then plain fallback; 9 tests, 111 in total. **Watch: live answers took 20–165 s; measure and fix in 3.9**)
 
 - **What:** The LLM explains the top 2–3 timetables using **only** the ranked results and reasons in state. Use the **full** course name from the data key (Q9), not the site's shortened saved name. For `BSTS` courses, show the **room** (it's part of the saved name, Q8), since that's where the student needs to go. **For grouped options (your rule):** after a timetable is chosen, tell the student which slot the course fits in and list the sections at that time, e.g. "Soft skills fits in D1+TD1. There are N sections at this time: [companies/rooms]. Pick one, or I'll leave it as any." If the student named a company or professor earlier, list only those. Optionally, a check that every faculty and slot name in the reply exists in state.
 - **Why:** The LLM explains and the code decides. This stops hallucinated professors and slots.
