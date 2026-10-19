@@ -421,7 +421,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
   - How would you add a second provider?
   - What did you set the temperature to for each node, and why?
 
-### - [ ] 3.3 `state.ts`
+### - [x] 3.3 `state.ts` (done: one writer per field, courses stored as small refs; 3 tests, 84 in total)
 
 - **What:** The graph state: `messages` (append reducer), `school` (one of `data`'s top-level keys, set once: D7), `branch` (the student's branch/specialization, e.g. BCE, BAI, BDS; Q11), `constraints`, `resolvedCourses`, `notOffered` (courses missing from that school), `candidates`, `ranked`, `conflict`, `relaxRounds`.
 - **Why:** State is the contract between nodes. Each field should have exactly one node that owns writing it.
