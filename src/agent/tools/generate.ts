@@ -10,6 +10,7 @@ import type { Course } from '../data/loadCourses';
 import { toFullCourseData } from '../data/toFullCourseData';
 import { sessionsOfSlotString, type Session, type Day } from '../data/slotTimes';
 import { toMinutes, type Constraints } from '../constraints';
+import { professorMatches } from './names';
 
 // One "must" wish, flattened out of Constraints.
 export type MustWish =
@@ -123,7 +124,7 @@ export function breaks(option: Option, wish: MustWish): boolean {
     }
     case 'professor': {
       if (wish.course !== option.course) return false;
-      const teaches = option.faculty.toLowerCase().includes(wish.name.toLowerCase());
+      const teaches = professorMatches(option.faculty, wish.name);
       return wish.wish === 'must' ? !teaches : teaches;
     }
     case 'slot': {

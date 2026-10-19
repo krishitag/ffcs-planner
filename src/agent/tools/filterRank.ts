@@ -6,6 +6,7 @@ import type { Constraints } from '../constraints';
 import { toMinutes } from '../constraints';
 import type { Session } from '../data/slotTimes';
 import type { Option, OptionGroup } from './generate';
+import { professorMatches } from './names';
 
 // One line of explanation: how many points, and why.
 export type Reason = { points: number; text: string };
@@ -65,7 +66,7 @@ function score(timetable: OptionGroup[], c: Constraints): RankedTimetable {
     if (!p || p.wish !== 'prefer') continue;
     const i = groups.findIndex(g => g.course === wish.query);
     if (i < 0) continue;
-    const match = (m: Option) => m.faculty.toLowerCase().includes(p.name.toLowerCase());
+    const match = (m: Option) => professorMatches(m.faculty, p.name);
     if (groups[i].members.some(match)) {
       groups = groups.map((g, j) => (j === i ? { ...g, members: sortFirst(g.members, match) } : g));
       reasons.push({ points: PROFESSOR_POINTS, text: `${p.name} for ${wish.query}` });

@@ -9,6 +9,7 @@ import { loadCourses, type Course } from '../data/loadCourses';
 import { sessionsOfSlotString, type Session } from '../data/slotTimes';
 import { slotProblem } from '../data/validate';
 import { building } from './filterRank';
+import { professorMatches } from './names';
 import type { Option, OptionGroup } from './generate';
 
 export type CheckResult = { ok: true } | { ok: false; problems: string[] };
@@ -212,7 +213,7 @@ function brokenMustWishes(timetable: OptionGroup[], c: Constraints): string[] {
     const p = wish.professor;
     if (p && p.wish !== 'prefer') {
       for (const m of g.members) {
-        const teaches = m.faculty.toLowerCase().includes(p.name.toLowerCase());
+        const teaches = professorMatches(m.faculty, p.name);
         if (p.wish === 'must' && !teaches)
           problems.push(`${wish.query}: ${m.faculty} isn't ${p.name}`);
         if (p.wish === 'avoid' && teaches)

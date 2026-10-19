@@ -431,7 +431,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
   - Why must state be serializable?
   - Which node writes each field?
 
-### - [ ] 3.4 `nodes/parseRequest.ts`
+### - [x] 3.4 `nodes/parseRequest.ts` (done: Gemini fills the form, Zod checks, retry with the error up to 3 times; professor titles ignored; 9 tests, 93 in total; live check: `npx tsx src/agent/nodes/parseRequest.check.ts`)
 
 - **What:** The LLM turns the user's message into the constraints schema (2.3) via `withStructuredOutput`.
 - **Why:** This is the only place free text becomes data.
