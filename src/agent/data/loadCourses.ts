@@ -13,8 +13,9 @@ export type Course = {
   entries: SubjectEntry[];
 };
 
+//returns a list of Course objects, each with school, domain, key, code, name, type, and entries
 export function loadCourses(): Course[] {
-  const courses: Course[] = [];
+  const courses: Course[] = []; // empty list
 
   for (const [school, domains] of Object.entries(data)) {
     for (const [domain, subjects] of Object.entries(domains)) {
