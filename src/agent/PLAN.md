@@ -25,13 +25,13 @@ Line numbers below were checked against `upstream/prod` @ `9f002de`. They will d
 
 ## Decisions still open (we'll settle each when we reach its subtask)
 
-| #   | Question                                                                                                                                                                                                     | Subtask |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| O1  | The day and hour labels live as local constants _inside_ the `TimeTable` component. Should we export them (a small edit to an existing file) or mirror them in `src/agent/` with a comment citing the lines? | 1.5     |
-| O2  | Data version: generate it at build time from git, or keep a constant you update by hand?                                                                                                                     | 1.7     |
-| O3  | Test runner: vitest (recommended) or `node:test`. **Decided (you, 2026-10-12): Vitest** (+ `vite` peer), config in `src/agent/vitest.config.ts`                                                              | 2.0     |
-| O4  | `resolve_courses`: a plain function call, or a real LLM tool-calling loop (ReAct)?                                                                                                                           | 3.5     |
-| O6  | Persistent checkpointer: MongoDB (the repo already uses it) or Postgres                                                                                                                                      | 7.1     |
+| #   | Question                                                                                                                                                                                                                                                      | Subtask |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| O1  | The day and hour labels live as local constants _inside_ the `TimeTable` component. Should we export them (a small edit to an existing file) or mirror them in `src/agent/` with a comment citing the lines?                                                  | 1.5     |
+| O2  | Data version: generate it at build time from git, or keep a constant you update by hand?                                                                                                                                                                      | 1.7     |
+| O3  | Test runner: vitest (recommended) or `node:test`. **Decided (you, 2026-10-12): Vitest** (+ `vite` peer), config in `src/agent/vitest.config.ts`                                                                                                               | 2.0     |
+| O4  | `resolve_courses`: a plain function call, or a real LLM tool-calling loop (ReAct)? **Decided (you, 2026-10-19): A, plain code** calls `searchCourses` for each course. A ReAct version (Gemini calling the search tool itself) is a possible later experiment | 3.5     |
+| O6  | Persistent checkpointer: MongoDB (the repo already uses it) or Postgres                                                                                                                                                                                       | 7.1     |
 
 ---
 
@@ -441,7 +441,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
   - What happens if Gemini returns something that fails the schema?
   - How do you parse "no 8am" vs "nothing before 9"?
 
-### - [ ] 3.5 `nodes/resolveCourses.ts`
+### - [x] 3.5 `nodes/resolveCourses.ts` (done: O4 = A, plain code; unclear courses kept aside for Phase 4; 5 tests, 98 in total)
 
 - **What:** Map course mentions to real codes with `searchCourses`, **always passing `state.school`** (D7). In Phase 3 the school comes from a CLI flag; in Phase 4 it comes from the ask-once interrupt (4.2).
   - A course not found in that school goes into `notOffered`, and `present` tells the student plainly ("BCSE303L isn't offered in SCOPE this semester"). It never substitutes another school's slots.
