@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { LLM_TIMEOUT_MS } from '../llm';
 import { Constraints } from '../constraints';
 import type { AgentStateType } from '../state';
 import { resolveCourses } from './resolveCourses';
@@ -71,16 +72,16 @@ describe('grounding: the answer may only mention what is in the facts', () => {
   });
 
   it('retries once, then falls back to the plain answer if the LLM keeps inventing', async () => {
-    const text = await writeAnswer(facts, fakeModel(['OS in A1', 'OS in A1 again']));
-    expect(text).toBe(fallbackText(facts));
+    const out = await writeAnswer(facts, fakeModel(['OS in A1', 'OS in A1 again']));
+    expect(out).toEqual({ text: fallbackText(facts), fallback: 'not-grounded' });
   });
 
   it('uses the LLM text when it sticks to the facts', async () => {
-    const text = await writeAnswer(
+    const out = await writeAnswer(
       facts,
       fakeModel(['Option 1 looks good. Course data from today.'])
     );
-    expect(text).toBe('Option 1 looks good. Course data from today.');
+    expect(out).toEqual({ text: 'Option 1 looks good. Course data from today.' });
   });
 
   it('falls back when the LLM fails, so the student always gets an answer', async () => {
@@ -89,7 +90,37 @@ describe('grounding: the answer may only mention what is in the facts', () => {
         throw new Error('network');
       },
     } as unknown as BaseChatModel;
-    expect(await writeAnswer(facts, broken)).toBe(fallbackText(facts));
+    expect(await writeAnswer(facts, broken)).toEqual({
+      text: fallbackText(facts),
+      fallback: 'llm-error',
+    });
+  });
+
+  it('falls back at once on a long rate limit, and says so', async () => {
+    let calls = 0;
+    const limited = {
+      invoke: async () => {
+        calls++;
+        throw Object.assign(new Error('429'), { status: 429 }); // no retry delay given
+      },
+    } as unknown as BaseChatModel;
+    expect(await writeAnswer(facts, limited)).toEqual({
+      text: fallbackText(facts),
+      fallback: 'llm-busy',
+    });
+    expect(calls).toBe(1);
+  });
+
+  it('falls back after 30s if the LLM never answers, and says so', async () => {
+    vi.useFakeTimers();
+    try {
+      const silent = { invoke: () => new Promise(() => {}) } as unknown as BaseChatModel;
+      const out = writeAnswer(facts, silent);
+      await vi.advanceTimersByTimeAsync(LLM_TIMEOUT_MS);
+      expect(await out).toEqual({ text: fallbackText(facts), fallback: 'llm-timeout' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -97,5 +128,11 @@ describe('present node', () => {
   it('adds the answer to the conversation', async () => {
     const update = await present(pipeline(['OS', 'CN']), fakeModel(['Here are your options.']));
     expect(update.messages?.[0].content).toBe('Here are your options.');
+    expect(update.messages?.[0].additional_kwargs).toEqual({});
+  });
+
+  it('marks a fallback answer', async () => {
+    const update = await present(pipeline(['OS', 'CN']), fakeModel(['OS in A1', 'A1 again']));
+    expect(update.messages?.[0].additional_kwargs).toEqual({ fallback: 'not-grounded' });
   });
 });

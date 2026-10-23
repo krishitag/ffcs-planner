@@ -46,8 +46,12 @@ async function ask(text: string) {
   school = (state.school as string | undefined) ?? school;
   branch = (state.branch as string | undefined) ?? branch;
 
+  // present marks a code-written answer used instead of the LLM's (see present.ts).
+  const fallback = answer?.additional_kwargs?.fallback;
   console.log(`\nAgent:\n${answer?.content ?? '(no answer)'}`);
-  console.log(`\n[${timings.join(' → ')}]`);
+  console.log(
+    `\n[${timings.join(' → ')}]${fallback ? ` [present: plain fallback, ${fallback}]` : ''}`
+  );
 }
 
 async function main() {

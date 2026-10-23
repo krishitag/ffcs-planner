@@ -476,7 +476,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
 - **Interview questions:**
   - How do you know the explanation doesn't contain hallucinations?
 
-### - [ ] 3.8 `graph.ts` and a CLI script
+### - [x] 3.8 `graph.ts` and a CLI script (done: the CLI is `scripts/chat.ts`; `afterParse` ends the turn when parsing fails; rate-limit rule (≤10s wait → one retry, else fail fast) and a 30s limit per LLM call in `callLlm`, both answering kindly instead of crashing; thinkingBudget stays an option, not the default (no gain shown, Flash-Lite rejects it); 128 tests in total)
 
 - **What:** Wire parse → resolve → generate → filter_and_rank → present, plus `src/agent/scripts/cli.ts`, which streams each node's update to the terminal.
 - **Who writes it:** You write `graph.ts`. Claude writes the CLI and walks you through it.
@@ -487,6 +487,10 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
 ### - [ ] 3.9 Smoke test and Phase 3 wrap-up
 
 - **What:** Run 3 requests (easy, multi-course, one with a faculty preference), then update the docs and do a quiz round.
+- **Progress:** the 3 requests are timed with `scripts/latency.ts`. Our code steps take 15–33 ms; all the waiting is Gemini.
+  - 2026-10-22, 3.8 Flash (free tier slow that day): parse 19–102 s, present 44–127 s.
+  - 2026-10-23, 3.5 Flash-Lite: parse 8.8–22.3 s, present 1.5–9.1 s, all real answers (no fallback).
+  - **Still to do:** re-measure 3.8 Flash on a normal day; update LEARNING.md, README.md and INTERVIEW.md; quiz round.
 
 ---
 

@@ -1,10 +1,10 @@
 // Graph step 1 (3.4): the LLM reads the student's message and fills in the constraints form
 // (constraints.ts). Zod checks the answer; if it's invalid, the LLM sees the error and tries
 // again (up to 3 attempts), so the student never sees a broken form.
-import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, type BaseMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { Constraints } from '../constraints';
-import { getModel } from '../llm';
+import { callLlm, getModel, LlmUnavailableError } from '../llm';
 import type { AgentStateType } from '../state';
 
 const MAX_ATTEMPTS = 3;
@@ -44,7 +44,12 @@ export function buildPrompt(message: string, previous?: Constraints, lastError?:
   return parts.join('\n\n');
 }
 
+// The LLM never gave a valid form, even after seeing its errors.
+export class CouldNotParseError extends Error {}
+
 // Ask the model to fill the form; check it with Zod; retry with the error if it's invalid.
+// Rate limits and time-outs are NOT retried here (callLlm handles them; retrying would only
+// burn quota or make the student wait longer): LlmUnavailableError goes straight up.
 export async function extractConstraints(
   message: string,
   previous?: Constraints,
@@ -54,26 +59,48 @@ export async function extractConstraints(
   let lastError: string | undefined;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const raw = await structured.invoke(buildPrompt(message, previous, lastError));
+      const raw = await callLlm(signal =>
+        structured.invoke(buildPrompt(message, previous, lastError), { signal })
+      );
       return Constraints.parse(raw); // checks everything, including .refine rules and defaults
     } catch (e) {
+      if (e instanceof LlmUnavailableError) throw e;
       lastError = e instanceof Error ? e.message.slice(0, 500) : String(e);
     }
   }
-  throw new Error(`Couldn't understand the request after ${MAX_ATTEMPTS} tries: ${lastError}`);
+  throw new CouldNotParseError(
+    `Couldn't understand the request after ${MAX_ATTEMPTS} tries: ${lastError}`
+  );
 }
+
+// What the student sees when parsing fails (the chat keeps going; nothing else changes).
+export const LLM_BUSY_REPLY =
+  "Sorry, I can't reach the AI right now (it's busy or out of quota). Please try again in a minute.";
+export const COULD_NOT_PARSE_REPLY =
+  'Sorry, I couldn\'t understand that. Could you say it another way? For example: "OS and CN, no 8am classes".';
 
 // The graph node: fills `constraints`, plus who the student is if they said so (and we didn't
 // already know). Writes nothing else (one writer per field, state.ts).
+// If it fails, it adds a short reply to `messages` instead, and the graph ends the turn there
+// (afterParse in graph.ts); the earlier constraints stay as they were.
 export async function parseRequest(
   state: AgentStateType,
   model?: BaseChatModel
 ): Promise<Partial<AgentStateType>> {
-  const constraints = await extractConstraints(
-    latestStudentText(state.messages),
-    state.constraints,
-    model
-  );
+  let constraints: Constraints;
+  try {
+    constraints = await extractConstraints(
+      latestStudentText(state.messages),
+      state.constraints,
+      model
+    );
+  } catch (e) {
+    if (e instanceof LlmUnavailableError) return { messages: [new AIMessage(LLM_BUSY_REPLY)] };
+    if (e instanceof CouldNotParseError) {
+      return { messages: [new AIMessage(COULD_NOT_PARSE_REPLY)] };
+    }
+    throw e;
+  }
   const said = constraints.student;
   return {
     constraints,

@@ -1,7 +1,8 @@
 // The whole agent as one LangGraph (step 3.8):
 //
-//   START → parseRequest → resolveCourses ─┬─ some courses found → generate → filterAndRank → present → END
-//                                          └─ none found ─────────────────────────────────→ present
+//   START → parseRequest ─┬─ understood → resolveCourses ─┬─ some found → generate → filterAndRank → present → END
+//                         │                               └─ none found ─────────────────────────→ present
+//                         └─ AI busy / not understood (it already replied) → END
 //
 // Each node is thin; the logic lives in tools/ (tested without an LLM). Only parseRequest and
 // present call the LLM. Models can be passed in so tests can use fakes.
@@ -13,6 +14,12 @@ import { resolveCourses } from './nodes/resolveCourses';
 import { generateNode } from './nodes/generate';
 import { filterAndRank } from './nodes/filterAndRank';
 import { present } from './nodes/present';
+
+// After parseRequest: if it already answered (the AI was unreachable or the message couldn't be
+// understood), end the turn there; otherwise carry on.
+export function afterParse(state: AgentStateType): 'resolveCourses' | typeof END {
+  return state.messages.at(-1)?.getType() === 'ai' ? END : 'resolveCourses';
+}
 
 // After resolveCourses: anything to generate?
 export function afterResolve(state: AgentStateType): 'generate' | 'present' {
@@ -27,7 +34,7 @@ export function buildGraph(models: { parse?: BaseChatModel; present?: BaseChatMo
     .addNode('filterAndRank', filterAndRank)
     .addNode('present', state => present(state, models.present))
     .addEdge(START, 'parseRequest')
-    .addEdge('parseRequest', 'resolveCourses')
+    .addConditionalEdges('parseRequest', afterParse, ['resolveCourses', END])
     .addConditionalEdges('resolveCourses', afterResolve, ['generate', 'present'])
     .addEdge('generate', 'filterAndRank')
     .addEdge('filterAndRank', 'present')

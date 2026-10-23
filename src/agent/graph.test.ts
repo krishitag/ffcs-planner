@@ -33,6 +33,22 @@ describe('the whole graph (with fake LLMs)', () => {
     expect(out.messages.at(-1)?.content).toBe('Here you go.');
   });
 
+  it('ends the turn right after parseRequest when the AI is busy', async () => {
+    const limited = {
+      withStructuredOutput: () => ({
+        invoke: async () => {
+          throw Object.assign(new Error('429'), { status: 429 });
+        },
+      }),
+    } as unknown as BaseChatModel;
+    const out = await buildGraph({ parse: limited, present: fakeWriter }).invoke({
+      messages: [new HumanMessage('OS')],
+      school: 'SCOPE',
+    });
+    expect(out.messages.at(-1)?.content).toMatch(/can't reach the AI/);
+    expect(out.resolved).toEqual([]); // resolveCourses never ran
+  });
+
   it('keeps the whole conversation (messages are appended)', async () => {
     const out = await run({ courses: [{ query: 'OS' }] });
     expect(out.messages.map(m => m.getType())).toEqual(['human', 'ai']);

@@ -6,7 +6,7 @@
 //      answer (fallbackText). The student always gets an answer, and never an invented one.
 import { AIMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { getModel } from '../llm';
+import { callLlm, getModel, LlmTimeoutError, LlmUnavailableError } from '../llm';
 import { formatTime } from '../data/slotTimes';
 import { DATA_VERSION } from '../data/dataVersion';
 import { courseFor, type AgentStateType } from '../state';
@@ -193,29 +193,51 @@ export function fallbackText(facts: Facts): string {
   return lines.join('\n');
 }
 
-export async function writeAnswer(facts: Facts, model: BaseChatModel): Promise<string> {
+// Why the plain answer was used instead of the LLM's (undefined = the LLM's answer was used).
+export type Fallback = 'llm-busy' | 'llm-timeout' | 'llm-error' | 'not-grounded';
+
+export async function writeAnswer(
+  facts: Facts,
+  model: BaseChatModel
+): Promise<{ text: string; fallback?: Fallback }> {
   let feedback = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const reply = await model.invoke(
-        `${PRESENT_INSTRUCTIONS}\n\nFacts:\n${JSON.stringify(facts, null, 1)}${feedback}`
+      const reply = await callLlm(signal =>
+        model.invoke(
+          `${PRESENT_INSTRUCTIONS}\n\nFacts:\n${JSON.stringify(facts, null, 1)}${feedback}`,
+          { signal }
+        )
       );
       const text = String(reply.content).trim();
       const problems = groundingProblems(text, facts);
-      if (text && problems.length === 0) return text;
+      if (text && problems.length === 0) return { text };
       feedback = `\n\nYour previous answer mentioned things that are not in the facts (${problems.join('; ')}). Rewrite it using only the facts.`;
-    } catch {
-      break; // the LLM failed: use the plain answer
+    } catch (e) {
+      // the LLM failed: use the plain answer
+      return {
+        text: fallbackText(facts),
+        fallback:
+          e instanceof LlmTimeoutError
+            ? 'llm-timeout'
+            : e instanceof LlmUnavailableError
+              ? 'llm-busy'
+              : 'llm-error',
+      };
     }
   }
-  return fallbackText(facts);
+  return { text: fallbackText(facts), fallback: 'not-grounded' };
 }
 
 // The graph node: adds the answer to the conversation (messages append, state.ts).
+// If the plain answer was used, the message says why in additional_kwargs.fallback
+// (the student sees the same text either way; chat.ts shows the tag for us).
 export async function present(
   state: AgentStateType,
   model: BaseChatModel = getModel({ temperature: 0.3 })
 ): Promise<Partial<AgentStateType>> {
-  const text = await writeAnswer(buildFacts(state), model);
-  return { messages: [new AIMessage(text)] };
+  const { text, fallback } = await writeAnswer(buildFacts(state), model);
+  return {
+    messages: [new AIMessage({ content: text, additional_kwargs: fallback ? { fallback } : {} })],
+  };
 }
