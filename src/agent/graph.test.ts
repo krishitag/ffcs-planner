@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { HumanMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { MemorySaver } from '@langchain/langgraph';
 import { buildGraph } from './graph';
 
 // Fake LLMs: one "fills the form" with a fixed answer, the other echoes a fixed reply.
@@ -52,5 +53,82 @@ describe('the whole graph (with fake LLMs)', () => {
   it('keeps the whole conversation (messages are appended)', async () => {
     const out = await run({ courses: [{ query: 'OS' }] });
     expect(out.messages.map(m => m.getType())).toEqual(['human', 'ai']);
+  });
+});
+
+describe('memory between messages (checkpointer, step 4.1)', () => {
+  // A fake parser that answers each turn with the next form, and remembers the prompts it saw.
+  function parserFor(forms: object[]) {
+    const prompts: string[] = [];
+    const model = {
+      withStructuredOutput: () => ({
+        invoke: async (prompt: string) => {
+          prompts.push(prompt);
+          return forms[prompts.length - 1];
+        },
+      }),
+    } as unknown as BaseChatModel;
+    return { model, prompts };
+  }
+
+  const thread = (id: string) => ({ configurable: { thread_id: id } });
+
+  it('a second message in the same thread starts from the saved state', async () => {
+    const parser = parserFor([
+      { courses: [{ query: 'OS' }, { query: 'CN' }] },
+      { courses: [{ query: 'OS' }, { query: 'CN' }], noClassesBefore: { time: '09:00' } },
+    ]);
+    const graph = buildGraph({
+      parse: parser.model,
+      present: fakeWriter,
+      checkpointer: new MemorySaver(),
+    });
+
+    // Turn 1 sends the school; turn 2 sends ONLY the new message.
+    await graph.invoke({ messages: [new HumanMessage('OS and CN')], school: 'SCOPE' }, thread('a'));
+    const out = await graph.invoke({ messages: [new HumanMessage('no 8am')] }, thread('a'));
+
+    expect(out.school).toBe('SCOPE'); // remembered, not sent again
+    expect(out.messages.map(m => m.getType())).toEqual(['human', 'ai', 'human', 'ai']);
+    expect(parser.prompts[1]).toContain('Previous form'); // turn 2 saw turn 1's wishes
+    expect(parser.prompts[1]).toContain('"OS"');
+  });
+
+  it('threads are kept apart', async () => {
+    const parser = parserFor([{ courses: [{ query: 'OS' }] }, { courses: [{ query: 'CN' }] }]);
+    const graph = buildGraph({
+      parse: parser.model,
+      present: fakeWriter,
+      checkpointer: new MemorySaver(),
+    });
+    await graph.invoke({ messages: [new HumanMessage('OS')], school: 'SCOPE' }, thread('a'));
+    const other = await graph.invoke({ messages: [new HumanMessage('CN')] }, thread('b'));
+    expect(other.school).toBeUndefined();
+    expect(other.messages).toHaveLength(2);
+    expect(parser.prompts[1]).not.toContain('Previous form');
+  });
+
+  it("never shows the last message's timetables when this one finds no course", async () => {
+    const parser = parserFor([
+      { courses: [{ query: 'OS' }, { query: 'CN' }] },
+      { courses: [{ query: 'quantum cooking' }] },
+    ]);
+    const graph = buildGraph({
+      parse: parser.model,
+      present: fakeWriter,
+      checkpointer: new MemorySaver(),
+    });
+    const first = await graph.invoke(
+      { messages: [new HumanMessage('OS and CN')], school: 'SCOPE' },
+      thread('a')
+    );
+    expect(first.ranked).toHaveLength(3);
+    const second = await graph.invoke(
+      { messages: [new HumanMessage('quantum cooking')] },
+      thread('a')
+    );
+    expect(second.resolved).toEqual([]);
+    expect(second.generated).toBeUndefined();
+    expect(second.ranked).toEqual([]);
   });
 });

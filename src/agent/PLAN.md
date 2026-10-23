@@ -497,7 +497,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
 
 ## Phase 4: Human-in-the-loop
 
-### - [ ] 4.1 Checkpointer and threads
+### - [x] 4.1 Checkpointer and threads (done: `buildGraph({ checkpointer })`, MemorySaver in chat.ts with one thread per chat and "new" for a fresh one; every step now runs every turn (the `afterResolve` shortcut is gone) so old timetables can't reappear; 3 tests, 131 in total. **At 4.8, update README.md and INTERVIEW.md Q62: they still mention `afterResolve`**)
 
 - **What:** Compile with `MemorySaver` and pass `thread_id` in the config.
 - **Concepts:** A checkpointer saves state after every node, keyed by thread. That's what makes pausing, resuming and multi-turn chat possible. In-memory storage is lost on restart.
