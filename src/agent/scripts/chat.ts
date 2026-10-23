@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { HumanMessage, type BaseMessage } from '@langchain/core/messages';
 import { Command, MemorySaver } from '@langchain/langgraph';
 import { buildGraph } from '../graph';
+import type { Question } from '../state';
 
 const args = process.argv.slice(2);
 const flag = (name: string) => {
@@ -33,11 +34,12 @@ async function ask(text: string) {
   // A paused graph gets the text as the answer (it re-runs the paused node). Otherwise it's a new
   // message; only the new one is sent, because the messages reducer APPENDS it to the saved
   // conversation (sending the whole list again would store every message twice).
-  const input = paused
+  const message = firstTurn
+    ? { messages: [new HumanMessage(text)], school, branch }
+    : { messages: [new HumanMessage(text)] };
+  const input: Parameters<typeof graph.stream>[0] = paused
     ? new Command({ resume: text })
-    : firstTurn
-      ? { messages: [new HumanMessage(text)], school, branch }
-      : { messages: [new HumanMessage(text)] };
+    : message;
   firstTurn = false;
 
   const timings: string[] = [];
@@ -50,10 +52,11 @@ async function ask(text: string) {
 
   // The saved state after this turn. If a node paused with a question, show it and wait.
   const { values, tasks } = await graph.getState(config);
-  const question = tasks.flatMap(t => t.interrupts)[0]?.value as { question: string } | undefined;
+  const question = tasks.flatMap(t => t.interrupts)[0]?.value as Question | undefined;
   paused = question !== undefined;
   if (question) {
-    console.log(`\nAgent (question):\n${question.question}\n\n[${timings.join(' → ')}]`);
+    const options = (question.options ?? []).map((o, i) => `\n  ${i + 1}. ${o}`).join('');
+    console.log(`\nAgent (question):\n${question.question}${options}\n\n[${timings.join(' → ')}]`);
     return;
   }
   const answer = (values.messages as BaseMessage[]).at(-1);

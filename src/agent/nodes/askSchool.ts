@@ -8,10 +8,7 @@
 import { interrupt } from '@langchain/langgraph';
 import { AIMessage } from '@langchain/core/messages';
 import { findBatch, findProgram, findSchool, offeredPrograms } from '../tools/findSchool';
-import type { AgentStateType } from '../state';
-
-// What the graph hands to the caller when it pauses (4.3 will add options to pick from).
-export type Question = { question: string };
+import type { AgentStateType, Question } from '../state';
 
 export function schoolQuestion(problem?: string): Question {
   const ask =

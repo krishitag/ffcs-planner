@@ -79,9 +79,9 @@ export const LLM_BUSY_REPLY =
 export const COULD_NOT_PARSE_REPLY =
   'Sorry, I couldn\'t understand that. Could you say it another way? For example: "OS and CN, no 8am classes".';
 
-// The graph node: fills `constraints`, plus the branch if the student said it (and we didn't
-// already know). School and batch stay inside `constraints.student`: askSchool turns them into a
-// real course list (4.2). Writes nothing else (one writer per field, state.ts).
+// The graph node: fills `constraints` and writes nothing else (one writer per field, state.ts).
+// What the student said about themselves stays inside `constraints.student`: askSchool turns
+// school + batch into a real course list (4.2), resolveCourses uses the branch (4.3).
 // If it fails, it adds a short reply to `messages` instead, and the graph ends the turn there
 // (afterParse in graph.ts); the earlier constraints stay as they were.
 export async function parseRequest(
@@ -102,5 +102,5 @@ export async function parseRequest(
     }
     throw e;
   }
-  return { constraints, branch: state.branch ?? constraints.student?.branch };
+  return { constraints };
 }

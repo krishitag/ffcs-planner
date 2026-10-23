@@ -515,7 +515,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
   - Why ask up front instead of searching every school and picking one?
   - How does the agent remember the school on the next message?
 
-### - [ ] 4.3 Interrupt for ambiguous courses
+### - [x] 4.3 Interrupt for ambiguous courses (done: in `resolveCourses`. Several groups + no branch → ask the branch ONCE (settles every such course, Q11); similar courses → top 5 numbered options, or type a code/name, or "none"; answers saved in `branch` and new `courseChoices`, so never asked twice; resolveCourses is now the only writer of `branch`; answers read by plain code (decided 2026-10-23); 9 tests, 152 in total)
 
 - **What:** `interrupt({ question, options })` inside `resolve_courses`, and resume with `new Command({ resume: answer })`.
 - **Concepts:** An interrupt pauses the graph and hands a value to the caller. On resume, **the node re-runs from its start**, so code before `interrupt()` must be safe to run twice.

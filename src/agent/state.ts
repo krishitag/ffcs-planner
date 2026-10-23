@@ -27,7 +27,8 @@ export const AgentState = Annotation.Root({
   // `batch` the year they joined. Written by: askSchool (from what they said, or by asking).
   school: Annotation<string | undefined>(),
   batch: Annotation<number | undefined>(),
-  // Written by: parseRequest (if they said it); 4.3 will ask when it matters (Q11).
+  // Branch/specialization code, e.g. "BCE", "BAI" (Q11). Written by: resolveCourses (from what they
+  // said, or by asking, only when a course's group depends on it: 4.3).
   branch: Annotation<string | undefined>(),
 
   // What they want: the 2.3 constraints form, filled in by the LLM. Written by: parseRequest.
@@ -36,6 +37,14 @@ export const AgentState = Annotation.Root({
   // Courses matched to the data, and the ones that couldn't be. Written by: resolveCourses.
   resolved: Annotation<ResolvedCourse[]>({ reducer: (_, next) => next, default: () => [] }),
   unresolved: Annotation<UnresolvedCourse[]>({ reducer: (_, next) => next, default: () => [] }),
+
+  // The student's answers to "which course did you mean by …?", so they're never asked twice:
+  // what they typed (lower case) → the course they picked, or null for "leave it out" (4.3).
+  // Written by: resolveCourses.
+  courseChoices: Annotation<Record<string, CourseRef | null>>({
+    reducer: (_, next) => next,
+    default: () => ({}),
+  }),
 
   // The generator's answer: timetables, or why nothing fits. Written by: generate.
   generated: Annotation<GenerateResult | undefined>(),
@@ -51,6 +60,10 @@ export const AgentState = Annotation.Root({
 });
 
 export type AgentStateType = typeof AgentState.State;
+
+// What the graph hands to the caller when it pauses with interrupt() (4.2, 4.3): the question,
+// and numbered options if there are any. The caller resumes with the student's answer as text.
+export type Question = { question: string; options?: string[] };
 
 // Turn a stored pointer back into the full course from today's data.
 export function courseFor(ref: CourseRef): Course | undefined {

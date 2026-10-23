@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { LLM_TIMEOUT_MS } from '../llm';
+import { searchCourses } from '../tools/searchCourses';
 import { Constraints } from '../constraints';
 import type { AgentStateType } from '../state';
 import { resolveCourses } from './resolveCourses';
@@ -49,7 +50,10 @@ describe('buildFacts', () => {
   });
 
   it('lists courses it could not match, with the options to choose from', () => {
-    const facts = buildFacts(pipeline(['OS', 'ML']));
+    // resolveCourses now asks about "ML" (4.3), so put the unclear result in by hand.
+    const state = pipeline(['OS']);
+    state.unresolved = [{ query: 'ML', result: searchCourses({ school: 'SCOPE', query: 'ML' }) }];
+    const facts = buildFacts(state);
     const ml = facts.notFound.find(n => n.query === 'ML')!;
     expect(ml.why).toMatch(/several groups/);
     expect(ml.options).toHaveLength(3);

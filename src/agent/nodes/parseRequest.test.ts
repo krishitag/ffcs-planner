@@ -68,7 +68,7 @@ describe('buildPrompt and latestStudentText', () => {
 });
 
 describe('parseRequest node', () => {
-  it('writes constraints and the branch; school and batch are left to askSchool', async () => {
+  it('writes only constraints; who the student is stays in the form for askSchool and resolveCourses', async () => {
     const { model } = fakeModel([
       { courses: [{ query: 'ML' }], student: { school: 'SCOPE', batch: 2024, branch: 'BAI' } },
     ]);
@@ -80,7 +80,7 @@ describe('parseRequest node', () => {
     expect(update.constraints?.student).toEqual({ school: 'SCOPE', batch: 2024, branch: 'BAI' });
     expect(update).not.toHaveProperty('school'); // one writer: askSchool
     expect(update).not.toHaveProperty('batch');
-    expect(update.branch).toBe('BAI'); // newly said: filled in
+    expect(update).not.toHaveProperty('branch'); // one writer: resolveCourses
   });
 
   it('replies kindly instead of crashing when the AI is rate-limited, without retrying', async () => {
