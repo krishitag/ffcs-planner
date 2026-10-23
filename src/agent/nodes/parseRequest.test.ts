@@ -68,7 +68,7 @@ describe('buildPrompt and latestStudentText', () => {
 });
 
 describe('parseRequest node', () => {
-  it('writes constraints and who the student is, without overwriting what we already knew', async () => {
+  it('writes constraints and the branch; school and batch are left to askSchool', async () => {
     const { model } = fakeModel([
       { courses: [{ query: 'ML' }], student: { school: 'SCOPE', batch: 2024, branch: 'BAI' } },
     ]);
@@ -77,7 +77,9 @@ describe('parseRequest node', () => {
       model
     );
     expect(update.constraints?.courses[0].query).toBe('ML');
-    expect(update.school).toBe('SCORE'); // already known: kept
+    expect(update.constraints?.student).toEqual({ school: 'SCOPE', batch: 2024, branch: 'BAI' });
+    expect(update).not.toHaveProperty('school'); // one writer: askSchool
+    expect(update).not.toHaveProperty('batch');
     expect(update.branch).toBe('BAI'); // newly said: filled in
   });
 

@@ -23,9 +23,11 @@ export const AgentState = Annotation.Root({
   // (the P.2 lesson: without it, every reply would wipe the history).
   ...MessagesAnnotation.spec,
 
-  // Who the student is. Written by: parseRequest (if they said it) / askSchool (Phase 4).
+  // Who the student is. `school` is an existing key of `data`, e.g. "SCOPE ('25 Batch)" (Q7);
+  // `batch` the year they joined. Written by: askSchool (from what they said, or by asking).
   school: Annotation<string | undefined>(),
   batch: Annotation<number | undefined>(),
+  // Written by: parseRequest (if they said it); 4.3 will ask when it matters (Q11).
   branch: Annotation<string | undefined>(),
 
   // What they want: the 2.3 constraints form, filled in by the LLM. Written by: parseRequest.

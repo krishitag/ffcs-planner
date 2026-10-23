@@ -104,8 +104,10 @@ describe('memory between messages (checkpointer, step 4.1)', () => {
     await graph.invoke({ messages: [new HumanMessage('OS')], school: 'SCOPE' }, thread('a'));
     const other = await graph.invoke({ messages: [new HumanMessage('CN')] }, thread('b'));
     expect(other.school).toBeUndefined();
-    expect(other.messages).toHaveLength(2);
+    expect(other.messages).toHaveLength(1); // only its own message so far
     expect(parser.prompts[1]).not.toContain('Previous form');
+    // Thread b doesn't know a's school, so it's paused asking for it (4.2).
+    expect((await graph.getState(thread('b'))).next).toEqual(['askSchool']);
   });
 
   it("never shows the last message's timetables when this one finds no course", async () => {

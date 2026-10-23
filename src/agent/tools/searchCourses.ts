@@ -89,7 +89,7 @@ function pickGroup(options: SearchMatch[], branch?: string): SearchMatch | null 
 
 // The courses the website's picker lists for this school (a lab whose theory course
 // exists is hidden; it comes with the theory course).
-function listedCourses(all: Course[]): Course[] {
+export function listedCourses(all: Course[]): Course[] {
   const keysByDomain = new Map<string, string[]>();
   for (const c of all) keysByDomain.set(c.domain, [...(keysByDomain.get(c.domain) ?? []), c.key]);
   const visible = new Set([...keysByDomain.values()].flatMap(keys => getVisibleSubjects(keys)));

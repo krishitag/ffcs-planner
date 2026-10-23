@@ -1,15 +1,16 @@
-// Chat with the agent in the terminal (step 3.8; memory from step 4.1).
+// Chat with the agent in the terminal (step 3.8; memory from 4.1; questions from 4.2).
 //
-//   npx tsx src/agent/scripts/chat.ts                       # chat, school SCOPE
-//   npx tsx src/agent/scripts/chat.ts --school SCORE --branch BAI
-//   npx tsx src/agent/scripts/chat.ts --once "OS and CN, no 8am"
+//   npx tsx src/agent/scripts/chat.ts                       # the agent asks for your school
+//   npx tsx src/agent/scripts/chat.ts --school SCORE --branch BAI   # skip the question
+//   npx tsx src/agent/scripts/chat.ts --once "OS and CN, no 8am, SCOPE 2024"
 //
 // The graph remembers the conversation itself (MemorySaver, one thread per chat): this script only
 // sends each NEW message. Type "new" to start a fresh thread. Memory is lost when the script exits.
+// When the graph pauses with a question (interrupt), your next line is sent as the answer.
 import { createInterface } from 'node:readline/promises';
 import { randomUUID } from 'node:crypto';
 import { HumanMessage, type BaseMessage } from '@langchain/core/messages';
-import { MemorySaver } from '@langchain/langgraph';
+import { Command, MemorySaver } from '@langchain/langgraph';
 import { buildGraph } from '../graph';
 
 const args = process.argv.slice(2);
@@ -19,20 +20,24 @@ const flag = (name: string) => {
 };
 
 const graph = buildGraph({ checkpointer: new MemorySaver() });
-const school = flag('school') ?? 'SCOPE';
+// A shortcut for testing: an exact course-list key, e.g. "SCOPE" or "SCOPE ('25 Batch)".
+const school = flag('school');
 const branch = flag('branch');
 
 // Which conversation we're in. A new id = a new, empty thread.
 let config = { configurable: { thread_id: randomUUID() } };
 let firstTurn = true;
+let paused = false; // is the graph waiting for an answer to a question?
 
 async function ask(text: string) {
-  // The first message also says who the student is (until 4.2 asks for it); after that the saved
-  // state already has it. Only the new message is sent: the messages reducer APPENDS it to the
-  // saved conversation (sending the whole list again would store every message twice).
-  const input = firstTurn
-    ? { messages: [new HumanMessage(text)], school, branch }
-    : { messages: [new HumanMessage(text)] };
+  // A paused graph gets the text as the answer (it re-runs the paused node). Otherwise it's a new
+  // message; only the new one is sent, because the messages reducer APPENDS it to the saved
+  // conversation (sending the whole list again would store every message twice).
+  const input = paused
+    ? new Command({ resume: text })
+    : firstTurn
+      ? { messages: [new HumanMessage(text)], school, branch }
+      : { messages: [new HumanMessage(text)] };
   firstTurn = false;
 
   const timings: string[] = [];
@@ -43,8 +48,14 @@ async function ask(text: string) {
     last = Date.now();
   }
 
-  // The saved state after this turn: the answer is the last message.
-  const { values } = await graph.getState(config);
+  // The saved state after this turn. If a node paused with a question, show it and wait.
+  const { values, tasks } = await graph.getState(config);
+  const question = tasks.flatMap(t => t.interrupts)[0]?.value as { question: string } | undefined;
+  paused = question !== undefined;
+  if (question) {
+    console.log(`\nAgent (question):\n${question.question}\n\n[${timings.join(' → ')}]`);
+    return;
+  }
   const answer = (values.messages as BaseMessage[]).at(-1);
 
   // present marks a code-written answer used instead of the LLM's (see present.ts).
@@ -60,7 +71,7 @@ async function main() {
   if (once) return ask(once);
 
   console.log(
-    `FFCS planner (school ${school}${branch ? `, branch ${branch}` : ''}). ` +
+    `FFCS planner${school ? ` (school ${school}${branch ? `, branch ${branch}` : ''})` : ''}. ` +
       `Type "new" for a fresh conversation, "exit" to quit.`
   );
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -70,6 +81,7 @@ async function main() {
     if (text === 'new') {
       config = { configurable: { thread_id: randomUUID() } };
       firstTurn = true;
+      paused = false;
       console.log('(new conversation)');
       continue;
     }
