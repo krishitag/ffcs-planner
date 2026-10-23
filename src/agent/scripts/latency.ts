@@ -73,7 +73,7 @@ async function main() {
       resolved: [],
       unresolved: [],
       ranked: [],
-      relaxRounds: 0,
+      relaxRounds: { turn: 0, rounds: 0 },
     } as unknown as AgentStateType;
     const codeStarted = Date.now();
     s = { ...s, ...resolveCourses(s) };

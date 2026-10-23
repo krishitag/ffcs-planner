@@ -7,8 +7,15 @@ import { loadCourses } from './data/loadCourses';
 describe('AgentState', () => {
   // A tiny two-step graph, just to see how updates merge into the notebook.
   const graph = new StateGraph(AgentState)
-    .addNode('first', () => ({ messages: [new AIMessage('hi')], school: 'SCOPE', relaxRounds: 1 }))
-    .addNode('second', () => ({ messages: [new AIMessage('again')], relaxRounds: 2 }))
+    .addNode('first', () => ({
+      messages: [new AIMessage('hi')],
+      school: 'SCOPE',
+      relaxRounds: { turn: 1, rounds: 1 },
+    }))
+    .addNode('second', () => ({
+      messages: [new AIMessage('again')],
+      relaxRounds: { turn: 1, rounds: 2 },
+    }))
     .addEdge(START, 'first')
     .addEdge('first', 'second')
     .addEdge('second', END)
@@ -17,7 +24,7 @@ describe('AgentState', () => {
   it('appends messages but replaces everything else', async () => {
     const out = await graph.invoke({ messages: [new HumanMessage('OS and CN')] });
     expect(out.messages.map(m => m.content)).toEqual(['OS and CN', 'hi', 'again']); // appended
-    expect(out.relaxRounds).toBe(2); // replaced
+    expect(out.relaxRounds).toEqual({ turn: 1, rounds: 2 }); // replaced
     expect(out.school).toBe('SCOPE'); // kept: "second" didn't mention it
   });
 
@@ -30,7 +37,7 @@ describe('AgentState', () => {
       .invoke({ messages: [] });
     expect(empty.resolved).toEqual([]);
     expect(empty.ranked).toEqual([]);
-    expect(empty.relaxRounds).toBe(0);
+    expect(empty.relaxRounds).toEqual({ turn: 0, rounds: 0 });
   });
 });
 

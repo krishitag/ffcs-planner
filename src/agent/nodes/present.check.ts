@@ -15,7 +15,7 @@ async function show(title: string, wishes: object) {
     resolved: [],
     unresolved: [],
     ranked: [],
-    relaxRounds: 0,
+    relaxRounds: { turn: 0, rounds: 0 },
   } as unknown as AgentStateType;
   s = { ...s, ...resolveCourses(s) };
   s = { ...s, ...generateNode(s) };

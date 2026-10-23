@@ -14,7 +14,7 @@ function pipeline(queries: string[], wishes: object = {}) {
     resolved: [],
     unresolved: [],
     ranked: [],
-    relaxRounds: 0,
+    relaxRounds: { turn: 0, rounds: 0 },
   } as unknown as AgentStateType;
   state = { ...state, ...resolveCourses(state) };
   state = { ...state, ...generateNode(state) };

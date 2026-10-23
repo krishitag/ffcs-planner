@@ -523,7 +523,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
 - **Interview questions:**
   - What happens to code that ran before `interrupt()` when you resume?
 
-### - [ ] 4.4 `nodes/relax.ts`
+### - [x] 4.4 `nodes/relax.ts` (done: `tools/relax.ts` lists the choices with timetable counts (reuses 2.4's conflict/fixes); relax asks with numbered options, written by code, not the LLM (decided 2026-10-23); a pick turns the wish into "if possible" (must → prefer, never deleted; "avoid" is removed) and loops back to generate via `Command({ goto })`; relax is the one documented 2nd writer of `constraints`; `afterRank` routes there, max 3 rounds per message (`relaxRounds` is now `{ turn, rounds }`); 12 tests, 164 in total)
 
 - **What:** Code works out _which_ hard constraints cause the zero results (re-run without each one and count the results). The LLM turns that into a question ("Keeping Friday free leaves nothing. Drop it, or drop Prof X?"). Then interrupt, apply the user's choice, and loop back to generate.
 - **Why:** Diagnosing the conflict is deterministic and wording it is the LLM's job, the same split as everywhere else.
@@ -557,6 +557,7 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
 ### - [ ] 4.6 Conditional edges and the loop cap
 
 - **What:** Route `0 results → relax` otherwise `→ final_check`. Add an ambiguity route, a `relaxRounds` cap (for example 3) and LangGraph's `recursionLimit`.
+- **Already done in 4.2–4.4:** the `0 results → relax` route (`afterRank`) with a 3-round cap per message; ambiguity is asked inside resolveCourses (no separate route needed). **Left:** set `recursionLimit` and a test that the graph always ends.
 - **Who writes it:** You.
 - **Interview questions:**
   - How do you guarantee the graph terminates?

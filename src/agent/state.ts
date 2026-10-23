@@ -32,6 +32,8 @@ export const AgentState = Annotation.Root({
   branch: Annotation<string | undefined>(),
 
   // What they want: the 2.3 constraints form, filled in by the LLM. Written by: parseRequest.
+  // The one exception: relax may turn a "must" wish in it into "prefer" when the student agrees
+  // (4.4, decided 2026-10-23).
   constraints: Annotation<Constraints | undefined>(),
 
   // Courses matched to the data, and the ones that couldn't be. Written by: resolveCourses.
@@ -55,8 +57,12 @@ export const AgentState = Annotation.Root({
   // Why `ranked` is empty even though timetables were generated, if it is. Written by: filterAndRank.
   rankIssue: Annotation<'same building' | 'final check rejected all' | undefined>(),
 
-  // How many times we've asked the student to drop a wish (Phase 4 loop cap). Written by: relax.
-  relaxRounds: Annotation<number>({ reducer: (_, next) => next, default: () => 0 }),
+  // How many times we've asked the student to relax a wish, and during which of their messages
+  // (the count restarts with each new message; loop cap, 4.4/4.6). Written by: relax.
+  relaxRounds: Annotation<{ turn: number; rounds: number }>({
+    reducer: (_, next) => next,
+    default: () => ({ turn: 0, rounds: 0 }),
+  }),
 });
 
 export type AgentStateType = typeof AgentState.State;
