@@ -490,7 +490,8 @@ _(3.1 moved to the parallel track as P.2. Finish it before 3.2.)_
 - **Progress:** the 3 requests are timed with `scripts/latency.ts`. Our code steps take 15–33 ms; all the waiting is Gemini.
   - 2026-10-22, 3.8 Flash (free tier slow that day): parse 19–102 s, present 44–127 s.
   - 2026-10-23, 3.5 Flash-Lite: parse 8.8–22.3 s, present 1.5–9.1 s, all real answers (no fallback).
-  - **Still to do:** re-measure 3.8 Flash on a normal day; update LEARNING.md, README.md and INTERVIEW.md; quiz round.
+  - Docs updated (LEARNING.md, README.md, INTERVIEW.md, 2026-10-23).
+  - **Still to do:** the quiz round; re-measure 3.8 Flash on a normal day.
 
 ---
 

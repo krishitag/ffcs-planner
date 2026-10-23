@@ -3,7 +3,8 @@
 Everything I need to talk about this project in an interview, organised the way interviewers ask.
 `LEARNING.md` is the phase-by-phase diary; this file is what I revise from. Updated after every phase.
 
-**Status:** Phases 0, 1 and 2 done (data layer and all the tools, 81 tests, no LLM yet). Phases 3–7 to go. Only claim what's built.
+**Status:** Phases 0–3 done: data layer, all the tools, and a working LangGraph agent with Gemini in the
+terminal (128 tests). Phases 4–7 to go (human-in-the-loop, web UI, evals). Only claim what's built.
 
 ---
 
@@ -34,7 +35,11 @@ Everything I need to talk about this project in an interview, organised the way 
 > wrapper that applies the student's must-haves and, when nothing fits, finds the smallest set of
 > wishes to blame or which wish to drop; a ranker that explains every point it gives; and an
 > independent final check. 62,614 real timetables pass the final check with zero false alarms.
-> Next is the LangGraph agent with Gemini, then human-in-the-loop questions, then evals."
+> Then I wired it into a LangGraph agent with Gemini. Only two steps use the LLM: reading the request
+> into a schema that Zod checks, and explaining the results. The explanation only sees a fact sheet of
+> checked data, and code rejects any slot or course code it invents. When Gemini is slow or
+> rate-limited, every call has one retry rule and a 30-second limit, and the student gets a plain
+> code-written answer instead of waiting. Next is human-in-the-loop questions, then evals."
 
 ---
 
@@ -57,20 +62,29 @@ Everything I need to talk about this project in an interview, organised the way 
 | 0.6 / 0.1       | search: minimum score to count as a match / lead needed to say "found" instead of asking                            |
 | 2 vs 1          | ranking points for a preferred professor vs any other preference (time wishes lose 0.25 per class that breaks them) |
 | 164             | timetables that appear for OS + DBMS + DSA when "Wednesday free" is dropped                                         |
+| 128             | automated tests after Phase 3 (Gemini faked, so they run in about a second)                                         |
+| 2 of 5          | graph steps that call the LLM (parse and present); the other 3 are plain code                                       |
+| 15–33 ms        | time our own code steps take per request; all the rest of the wait is Gemini                                        |
+| 3 / 2           | tries for parsing (bad output shown back to Gemini) / for presenting (then a plain code-written answer)             |
+| 10 s / 30 s     | longest rate-limit wait we accept before one retry / time limit per LLM call                                        |
+| 6 → 0           | LangChain's hidden retries per call, turned off so there's one retry policy                                         |
+| 127 s           | the slowest answer seen live (3.8 Flash, slow free-tier day), which led to the 30 s limit                           |
 
 ---
 
 ## 3. Architecture in one picture
 
+The graph as built (Phase 3):
+
 ```
-student message
-   → understand the request (LLM → structured constraints, Zod)
-   → find the real courses (search tool; asks the student if ambiguous)
-   → build every option (site's own buildCourseData) → generate timetables (site's generateTT)
-   → filter and rank (code) → final check (code)
-   → explain the top 2–3 (LLM, using only checked data)
-   ↺ if nothing fits: explain the conflict and ask which constraint to relax
+START → parseRequest ─┬─ understood → resolveCourses ─┬─ some found → generate → filterAndRank → present → END
+  (LLM → constraints,  │   (search, own school only)   └─ none found ─────────────────────────→ present
+   Zod-checked)        └─ AI busy / not understood (it already replied) → END
 ```
+
+- `generate` uses the site's own `buildCourseData` and `generateTT`; `filterAndRank` ranks and runs the
+  independent final check; `present` has the LLM word a fact sheet of checked data.
+- Still to come (Phase 4): ask about unclear courses, and when nothing fits, ask which wish to relax.
 
 Folders follow the data flow: `data/` → `tools/` → `nodes/` → `graph.ts`. Tools hold the tested
 logic; nodes are thin glue between the graph's state and the tools.
@@ -147,6 +161,25 @@ logic; nodes are thin glue between the graph's state and the tools.
   adding them back after; put the finding on the list for the maintainers.
 - _Result:_ the agent follows the real rule (NIL never clashes) without changing shared code.
 
+**Stopping the LLM from inventing slots (Phase 3)**
+
+- _Problem:_ an LLM explaining timetables can name a slot, professor or course that doesn't exist, and a
+  prompt rule alone is no guarantee.
+- _What I did:_ code builds a fact sheet from checked data only; the LLM words it; code then scans the
+  reply for any slot or course code not in the facts. One retry with the problem pointed out, then a plain
+  answer written by code.
+- _Result:_ the student always gets an answer, and never an invented one. Tests prove invented `A1` or
+  `BCSE999L` are caught.
+
+**Slow answers that weren't my code (Phase 3)**
+
+- _Problem:_ live answers took up to 127 s, and one idea was to turn off Gemini's "thinking".
+- _What I did:_ wrote a timing script before changing anything. My code steps took 15–33 ms; a 9-token
+  "OK" test alone took 61.7 s, so the delay was the free tier. Thinking budget 0 showed no gain, and
+  Flash-Lite rejected it. I also found LangChain was silently retrying up to 6 times and turned that off.
+- _Result:_ one retry rule in one place, a 30 s limit per call with a plain answer as the fallback, and
+  thinking left at the default. Lesson: measure before optimising.
+
 ---
 
 ## 5. Quick glossary
@@ -162,6 +195,18 @@ logic; nodes are thin glue between the graph's state and the tools.
 - **Tool call:** the LLM's request (name, args, id); my code runs it and replies with a `ToolMessage`
   carrying the same id.
 - **Workflow vs agent:** fixed steps decided by code vs the LLM choosing tools in a loop (ReAct).
+- **Structured output:** the LLM fills a schema (`withStructuredOutput`) instead of writing free text.
+- **Grounding:** the LLM may only use the facts it's given; like RAG, with my checked state as the context.
+- **Temperature:** 0 = always the most likely answer (parsing); higher = more varied wording (explaining).
+- **Thinking budget:** how many "thinking" tokens a model may use before answering.
+
+**Reliability**
+
+- **429 / rate limit:** the API says "too many requests", often with how long to wait.
+- **Fail fast:** give up at once when waiting won't help, instead of burning quota on retries.
+- **Timeout:** stop waiting after a fixed time (`Promise.race`) and cancel the request (`AbortController`).
+- **Graceful degradation / fallback:** a plainer but correct answer when the smart path fails.
+- **Latency:** how long a step takes; measure it before trying to make it faster.
 
 **TypeScript / JavaScript**
 
@@ -303,6 +348,63 @@ logic; nodes are thin glue between the graph's state and the tools.
 48. **Some tests use today's courses. What happens when the data changes?** A failing test means "look at what
     changed", like the validator; I check whether the data or my rule changed before editing anything.
 
+### Phase 3: the LLM and the graph
+
+49. **How would you add a second LLM provider?** Add a branch in `getModel()` for the new provider. Every
+    node depends on LangChain's `BaseChatModel`, not on Gemini, so nothing else changes.
+50. **What temperature did you use for each node, and why?** 0 for parsing, so the same message always
+    gives the same form; 0.3 for explaining, so the wording sounds natural. Facts never depend on it.
+51. **Why a fixed model version instead of `-latest`?** So the model can't change under me between eval
+    runs and make results incomparable.
+52. **Why must state be serializable?** From Phase 4 the whole state is saved after every step (the
+    checkpointer). Plain data can be saved and loaded; functions and class instances can't.
+53. **Which node writes each field, and why does it matter?** One writer per field (parse → constraints,
+    school, batch, branch; resolve → resolved/unresolved; generate → generated; filterAndRank → ranked and
+    rankIssue). A wrong value then has exactly one suspect. The exception is `messages`, which is
+    append-only: present adds the answer, and parse adds a reply only when it can't continue.
+54. **Why store course refs in state instead of whole courses?** State is saved after every step; a ref
+    (school, domain, key) is tiny and the full course is looked up when needed.
+55. **What happens if Gemini returns something that fails the schema?** Zod rejects it, and Gemini gets the
+    error message back and tries again, up to 3 times. After that the student is asked to rephrase.
+56. **How do you parse "no 8am" vs "nothing before 9"?** Both become "no classes before 09:00": the prompt
+    states the rule, and times are stored as 24-hour `HH:MM` that Zod checks.
+57. **Is your project an agent or a workflow? Defend it.** A workflow with LLM steps: the steps are always
+    the same and every fact must be checked, so code decides the order. The LLM does only what code can't:
+    understand free text and explain results.
+58. **How would you stop a ReAct loop running forever?** A cap on tool-call rounds in my own state, plus
+    LangGraph's recursion limit as a safety net.
+59. **How do you make sure the LLM can't search another school, even if the student asks?** The LLM never
+    calls the search: plain code does, always with the school from state. Even in a ReAct version the
+    school would come from state, not from the LLM's arguments.
+60. **Why are generate and filterAndRank nodes, not tools the LLM calls?** They must always run, in the same
+    order, on the same inputs. Letting the LLM decide whether to call them only adds ways to fail.
+61. **How do you know the explanation doesn't contain hallucinations?** The LLM only sees a fact sheet of
+    checked data, and code scans its reply for any slot or course code not in the facts: one retry, then a
+    plain code-written answer.
+62. **Draw your graph.** parse → resolve → generate → filterAndRank → present. `afterParse` ends the turn if
+    parse already replied (AI busy or not understood); `afterResolve` skips to present if no course was found.
+63. **Why not one big prompt with all the data?** Too big, slow and expensive, it changes every semester,
+    and the LLM could still get clashes wrong. Code computes; the LLM only reads and explains.
+64. **What happens when Gemini is rate-limited?** If it asks for a wait of 10 s or less, wait and retry once;
+    otherwise fail fast. Parsing says "can't reach the AI"; presenting gives the plain answer.
+65. **Why turn off LangChain's own retries?** It silently retried up to 6 times. Two retry layers multiply
+    each other, so I keep one policy in one place where I can test it.
+66. **Why does `withTimeout` fail with its own error before calling `abort()`?** `Promise.race` takes
+    whichever settles first. Failing first means the race ends with my clear `LlmTimeoutError`, not the
+    "aborted" error that the cancelled call throws.
+67. **Why is a timeout not retried, when bad output gets 3 tries?** Bad output is quick to retry and the
+    error helps the model fix it. A timeout means the student has already waited 30 s; another try could
+    double that, so a plain answer now is better.
+68. **`Promise.race` already stops your code waiting. Why pass the `signal` to LangChain too?** The race only
+    stops _my_ wait; without the signal the request keeps running in the background and still uses quota.
+    The signal actually cancels it.
+69. **Your answers were slow. How did you find out why?** A timing script per step: my code took 15–33 ms,
+    and a 9-token test prompt alone took 61.7 s, so the delay was on Gemini's side, not in my code.
+70. **Did turning thinking off help?** No measurable gain on 3.8 Flash, and Flash-Lite rejected it, so it
+    stays an option, not the default. Measure before optimising.
+71. **Why does the plain answer say _why_ it was used?** The student sees the same text either way, but the
+    tag (`llm-busy`, `llm-timeout`, `llm-error`, `not-grounded`) tells me how often each failure happens.
+
 ---
 
 ## 7. Resume bullet (draft, update as phases finish)
@@ -311,7 +413,9 @@ logic; nodes are thin glue between the graph's state and the tools.
 > clash-free VIT course schedules on top of FFCS-inator (~30k users); refactored its course logic into
 > shared pure functions with snapshot-verified zero behaviour change across 938 courses, cut the
 > timetable search space ~93× by grouping equivalent sections, and built an independent final check
-> that passed 62,614 real timetables with zero false alarms (81 automated tests).
+> that passed 62,614 real timetables with zero false alarms; the LLM (Gemini) only parses requests into a
+> Zod-checked schema and explains a fact sheet of verified data, with an output check against invented
+> slots, a single retry policy and a 30 s limit with code-written fallbacks (128 automated tests).
 
-(When Phases 3–6 are done, add: the agent works end to end, asks clarifying questions, and the eval
-results, e.g. "100% clash-free on N test requests".)
+(When Phases 4–6 are done, add: asks clarifying questions, and the eval results, e.g. "100% clash-free
+on N test requests".)

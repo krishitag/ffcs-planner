@@ -276,3 +276,100 @@ to say them in my own words without reading.
 4. "Nothing reaches a student without an independent check. It rebuilds sessions from the raw data and
    checks clashes two ways, by time overlap and the website's clash table. I proved it catches planted
    bugs and raised no false alarms on 62,614 real timetables."
+
+---
+
+## Phase 3: The first working agent (terminal only)
+
+### What I built
+
+- **`llm.ts`** (3.2): `getModel()`, the one place that picks the model (Gemini 3.8 Flash, a fixed
+  version; Gemini 2.5 Flash is closed to new users). `LLM_MODEL` in the shell overrides it, e.g.
+  Flash-Lite for cheap dev runs. Later in the phase it also got `callLlm`, which wraps every LLM call:
+  - **Rate limits (429):** if Gemini asks for a wait of 10s or less, wait and try once more; otherwise
+    fail fast with `LlmUnavailableError`. LangChain's own hidden retries are off (`maxRetries: 0`).
+  - **Time limit:** each call is stopped after 30s (`LlmTimeoutError`) and the request is cancelled.
+- **`state.ts`** (3.3): the shared notebook. Every field has exactly one node that writes it. Courses
+  are stored as small refs (school, domain, key), not whole courses, so saved state stays small.
+- **`nodes/parseRequest.ts`** (3.4): Gemini fills the 2.3 constraints form (`withStructuredOutput`),
+  Zod checks it, and a bad answer is retried with the error shown to Gemini (3 tries). If the AI is
+  busy it replies "can't reach the AI"; after 3 bad answers it asks the student to rephrase.
+- **`nodes/resolveCourses.ts`** (3.5): plain code (O4 = A) runs the 2.2 search for each course, only in
+  the student's school. Unclear ones are kept aside for Phase 4 to ask about.
+- **`nodes/generate.ts` and `nodes/filterAndRank.ts`** (3.6): thin glue around the Phase 2 tools.
+  `rankIssue` says why ranking came out empty (e.g. "same building").
+- **`nodes/present.ts`** (3.7): code builds a **fact sheet** from checked data; Gemini words it; code
+  checks the reply mentions no slot or course code that isn't in the facts. One retry, then a plain
+  answer written by code. The answer is tagged with why a fallback was used (`llm-busy`,
+  `llm-timeout`, `llm-error`, `not-grounded`).
+- **`graph.ts`** (3.8): parse → resolve → generate → filterAndRank → present, with two conditional
+  edges: `afterParse` ends the turn if parsing already replied; `afterResolve` skips straight to
+  present if no course was found.
+- **`scripts/chat.ts`**: chat with the agent in the terminal. **`scripts/latency.ts`**: times each step.
+- 128 tests by the end of the phase (Gemini is faked in tests, so they're fast and free).
+
+### Concepts
+
+- **Dependency inversion:** nodes depend on LangChain's `BaseChatModel`, not on Gemini. Switching
+  provider is a change in `llm.ts` only, and tests pass in a fake model.
+- **Temperature:** 0 for parsing (same input → same form), 0.3 for explaining (more natural wording).
+- **Structured output:** the LLM fills a schema instead of writing free text; under the hood it's
+  the same mechanism as tool calling.
+- **Validate and retry with the error:** the model sees what was wrong and fixes it.
+- **Workflow vs agent:** my graph is a workflow (code decides the steps). The LLM is used only where
+  free text is involved: reading the request and writing the answer.
+- **Grounding:** like RAG, but the "retrieved context" is my own checked state. Plus an output check,
+  because a prompt rule alone isn't a guarantee.
+- **Conditional edges:** a function reads the state and picks the next node.
+- **Graceful degradation:** when the LLM is slow, busy or wrong, the student still gets a correct
+  (plainer) answer.
+- **Retry policy in one place:** hidden library retries + my retries would multiply; I turned the
+  library's off.
+- **Timeouts with `Promise.race` + `AbortController`:** stop waiting, and also cancel the request.
+- **Measure before optimising:** my code steps take 15–33 ms; all the waiting is on Gemini's side.
+
+### Decisions and why
+
+| Decision                                                                     | Why                                                                                           |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| A fixed model version (`gemini-3.8-flash`), not an alias like `-latest` (D1) | The model can't change under me between eval runs                                             |
+| Plain code resolves courses, not a ReAct loop (O4 = A)                       | Predictable, fast, testable; the search is already good. ReAct is a possible later experiment |
+| One writer per state field                                                   | A wrong value has exactly one suspect                                                         |
+| State holds refs, not whole courses                                          | Phase 4 saves the state after every step; small refs keep that cheap                          |
+| Only parseRequest and present call the LLM                                   | The LLM handles language; code handles every fact                                             |
+| Fact sheet + grounding check + plain fallback in present                     | The student always gets an answer, and never an invented slot or course                       |
+| Rate limit: ≤10s wait → one retry, else fail fast; library retries off       | Retrying a long limit just burns free-tier quota and keeps the student waiting                |
+| 30s limit per LLM call, no retry after a timeout                             | A student once waited 127s; after 30s a plain answer is better than more waiting              |
+| `thinkingBudget: 0` stays an option, not the default                         | No speed-up measured on 3.8 Flash, and Flash-Lite rejects it                                  |
+| Bad output: 3 tries, then "please rephrase" instead of crashing              | The chat keeps going                                                                          |
+
+### What live runs taught me
+
+- **Latency is all Gemini.** Our code steps take 15–33 ms. On 2026-10-22 the 3.8 Flash free tier was
+  slow: parse 19–102 s, present 44–127 s, and a 9-token "OK" test took 61.7 s. On 2026-10-23 Flash-Lite
+  did parse in 8.8–22.3 s and present in 1.5–9.1 s.
+- **Don't trust a setting without measuring it:** turning thinking off showed no gain, and one model
+  rejects it outright.
+- **Libraries hide behaviour:** LangChain silently retried up to 6 times. Found it, turned it off.
+
+### Interview questions
+
+1. Draw your graph and explain each edge.
+2. How do you know the explanation doesn't contain hallucinations?
+3. What happens when Gemini is down, rate-limited or slow?
+4. Is your project an agent or a workflow? Defend it.
+
+**Short answers:**
+
+1. "Parse, resolve, generate, rank, present. After parse, a conditional edge ends the turn if parsing
+   already replied (AI busy or not understood). After resolve, if no course was found, it skips to
+   present to explain why. Only parse and present use the LLM."
+2. "The LLM only sees a fact sheet built from checked data, then my code scans its reply for any slot or
+   course code that isn't in the facts. One retry with the problem pointed out, then a plain answer
+   written by code."
+3. "Every call goes through one wrapper: a short rate limit gets one retry, a long one fails fast, and
+   any call over 30 seconds is cancelled. Parsing then says 'can't reach the AI', and presenting falls
+   back to a plain code-written answer, so the student is never left hanging."
+4. "A workflow with LLM steps: code decides the order, because the steps are always the same and every
+   fact must be checked. The LLM does what code can't: understand free text and explain results.
+   Phase 4 adds human-in-the-loop questions; a ReAct course search is a possible experiment later."

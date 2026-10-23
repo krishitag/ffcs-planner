@@ -27,10 +27,22 @@ Run a TypeScript file directly with `tsx`:
 npx tsx src/agent/playground/p2-graph.ts
 ```
 
+### Chat with the agent
+
+Needs `GOOGLE_API_KEY` (and `LLM_PROVIDER=gemini`) in `.env.local`.
+
+```bash
+npx tsx src/agent/scripts/chat.ts                              # chat, school SCOPE
+npx tsx src/agent/scripts/chat.ts --school SCORE --branch BAI
+npx tsx src/agent/scripts/chat.ts --once "OS and CN, no 8am"
+LLM_MODEL=gemini-3.5-flash-lite npx tsx src/agent/scripts/chat.ts   # cheaper model for dev
+npx tsx src/agent/scripts/latency.ts                           # time each step
+```
+
 ### Tests
 
 ```bash
-yarn test:agent         # run every agent test once (81 today)
+yarn test:agent         # run every agent test once (128 today; the LLM is faked)
 yarn test:agent:watch   # rerun on every save
 ```
 
@@ -71,18 +83,27 @@ Commit `dataVersion.ts` with the update. The validator never changes data; it on
 | `tools/generate.ts`         | The generator wrapper: removes options that break a must wish (D11), groups same-slot sections (~93× fewer combinations), refuses if too many, runs the website's `generateTT`, and explains failures (the smallest set of wishes to blame, or which wishes to drop). NIL-only courses skip `generateTT` (R6) |
 | `tools/filterRank.ts`       | Scores timetables on the prefer wishes (professors count double, D12), keeps the top 3 that really differ, and gives a reason for every point; handles same building                                                                                                                                          |
 | `tools/finalCheck.ts`       | The last gate: re-checks every timetable from the raw data (real slots, really offered, the professor's own lab, no clashes two ways, every must wish) before a student sees it                                                                                                                               |
-| `**/*.test.ts`              | Vitest tests for all of the above (81 today)                                                                                                                                                                                                                                                                  |
+| `llm.ts`                    | `getModel()`: the one place that picks the LLM (Gemini 3.8 Flash; `LLM_MODEL` overrides). `callLlm()`: wraps every LLM call with the rate-limit rule (≤10s wait → one retry, else `LlmUnavailableError`) and a 30s limit (`LlmTimeoutError`, request cancelled)                                               |
+| `llm.check.ts`              | Sends Gemini one tiny message to check the key and model work                                                                                                                                                                                                                                                 |
+| `state.ts`                  | The graph's shared state (the "notebook"). Each field has one writer node; courses are stored as small refs                                                                                                                                                                                                   |
+| `nodes/parseRequest.ts`     | Graph step 1: Gemini fills the constraints form, Zod checks it, 3 tries with the error shown. Replies "can't reach the AI" or "please rephrase" instead of crashing                                                                                                                                           |
+| `nodes/resolveCourses.ts`   | Graph step 2: plain code runs the course search for each course, only in the student's school; unclear ones are kept aside                                                                                                                                                                                    |
+| `nodes/generate.ts`         | Graph step 3: thin glue around `tools/generate.ts`                                                                                                                                                                                                                                                            |
+| `nodes/filterAndRank.ts`    | Graph step 4: ranks with `tools/filterRank.ts`, keeps only timetables that pass `tools/finalCheck.ts`                                                                                                                                                                                                         |
+| `nodes/present.ts`          | Graph step 5: fact sheet from checked data → Gemini words it → code checks for invented slots/codes → one retry → plain code-written answer (tagged with why)                                                                                                                                                 |
+| `nodes/*.check.ts`          | Live scripts that run a node against real Gemini and print the result                                                                                                                                                                                                                                         |
+| `graph.ts`                  | Wires the nodes: parse → resolve → generate → filterAndRank → present, with `afterParse` (end the turn if parse already replied) and `afterResolve` (skip to present if no course was found)                                                                                                                  |
+| `scripts/chat.ts`           | Chat with the agent in the terminal; prints `[present: plain fallback, <reason>]` when the plain answer was used                                                                                                                                                                                              |
+| `scripts/latency.ts`        | Times parse (default thinking vs budget 0), the code steps and present on 3 requests                                                                                                                                                                                                                          |
+| `**/*.test.ts`              | Vitest tests for all of the above (128 today)                                                                                                                                                                                                                                                                 |
 | `vitest.config.mts`         | Test runner config (the `@/` alias, tests only inside `src/agent/`)                                                                                                                                                                                                                                           |
 
 ### Coming next (folders appear when their first file is added)
 
-| Folder / file | What it will hold                                                                                          | Phase |
-| ------------- | ---------------------------------------------------------------------------------------------------------- | ----- |
-| `llm.ts`      | Which LLM to use (Gemini 2.5 Flash), chosen by the `LLM_PROVIDER` env var                                  | 3     |
-| `state.ts`    | The graph's shared state (the "notebook" every step reads and writes)                                      | 3     |
-| `nodes/`      | One file per graph step (understand request, resolve courses, generate, rank, relax, present, final check) | 3–4   |
-| `graph.ts`    | Wires the nodes together with edges                                                                        | 3     |
-| `evals/`      | About 50 test requests and the script that scores the agent                                                | 6     |
+| Folder / file | What it will hold                                                                             | Phase |
+| ------------- | --------------------------------------------------------------------------------------------- | ----- |
+| `nodes/`      | More steps: ask for school/batch/branch, ask about unclear courses, relax a wish (interrupts) | 4     |
+| `evals/`      | About 50 test requests and the script that scores the agent                                   | 6     |
 
 ### Outside this folder (existing FFCS-inator code the agent reuses)
 
@@ -97,12 +118,13 @@ Commit `dataVersion.ts` with the update. The validator never changes data; it on
 
 ## How the pieces connect
 
+Built so far (Phase 3), in `graph.ts`:
+
 ```
-student message
-   → understand the request (LLM → constraints)
-   → find the real courses (search tool, asks if ambiguous)
-   → build every option (buildCourseData) → generate timetables (generateTT)
-   → filter and rank (code) → final check (code)
-   → explain the top 2–3 (LLM, using only checked data)
-   ↺ if nothing fits: explain the conflict and ask which constraint to relax
+START → parseRequest ─┬─ understood → resolveCourses ─┬─ some found → generate → filterAndRank → present → END
+   (LLM → constraints) │   (search, own school only)   └─ none found ─────────────────────────→ present
+                       └─ AI busy / not understood (it already replied) → END
 ```
+
+Only `parseRequest` and `present` call the LLM, both through `callLlm`. Still to come: asking the
+student about unclear courses and which wish to relax when nothing fits (Phase 4, interrupts).
